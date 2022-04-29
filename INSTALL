@@ -1,0 +1,13 @@
+This project uses standard autotools to build and install. In case when
+there is no configure script file (like when you clone from git) first run:
+
+$ ./bootstrap.sh
+
+After that configure script will be created and you can run:
+
+$ ./configure
+$ make
+# make install
+
+Use "./configure --help" to see all available compile options and optional
+features.
