@@ -20,7 +20,6 @@
 #include <embedlog.h>
 #include <errno.h>
 #include <getopt.h>
-#include <ini.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -111,7 +110,7 @@
 	PARSE_MAP(SECTION ## _ ## OPTNAME, value)
 
 /* list of short options for getopt_long */
-static const char *shortopts = ":hvc:dDh:p:";
+static const char *shortopts = ":hvc:dm:Dh:p:";
 
 
 /* array of long options for getop_long. This is defined as macro so it
@@ -165,87 +164,7 @@ const struct config  *config;
   / /_/ // /   / / | |/ // /_/ // /_ /  __/  / __// /_/ // / / // /__ (__  )
  / .___//_/   /_/  |___/ \__,_/ \__/ \___/  /_/   \__,_//_/ /_/ \___//____/
 /_/
-   ========================================================================== */
-
-
-/* ==========================================================================
-    Parses map of strings and if arg is found in map, it's numerical value
-    (map index) is stored in field
-   ========================================================================== */
-static int config_parse_map
-(
-	const char  *aargs,   /* string(s) to search in a map */
-	long long   *field,   /* numerical value for arg will be stored here */
-	const struct config_map  *map
-)
-{
-	const struct config_map  *maps;
-	char         args[0];
-	char        *s;
-	char        *sp;
-	int          ret;
-	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-
-	maps = map;
-	strcpy(args, aargs);
-	*field = 0;
-
-	for (s = strtok_r(args, ",", &sp); s != NULL; s = strtok_r(NULL, ",", &sp))
-	{
-		for (ret = -1, map = maps; map->str != NULL; ++map)
-		{
-			if (strcmp(map->str, s) == 0)
-			{
-				*field += map->val;
-				ret = 0;
-			}
-		}
-
-		if (ret == -1)
-		{
-			fprintf(stderr, "error, invalid option: %s\n", s);
-			return -1;
-		}
-	}
-
-	return ret;
-}
-
-
-/* ==========================================================================
-    Parses map of strings and if numerical arg is found in map, pointer to
-    string for that value is returned, or NULL if not found.
-   ========================================================================== */
-static const char * config_parse_map_by_value
-(
-	long long    val,     /* value to search in a map */
-	int          flag,    /* is val flag type or single value? */
-	char        *ret,     /* buf to store flag strings, used when flag == 1 */
-	const struct config_map  *map
-)
-{
-	if (flag == 0)
-		for (; map->str != NULL; ++map)
-			if (map->val == val)
-				return map->str;
-
-	ret[0] = '\0';
-	for (; map->str != NULL; ++map)
-		if (val & map->val)
-		{
-			strcat(ret, map->str);
-			strcat(ret, ",");
-		}
-
-	/* remove trailing comma */
-	ret[strlen(ret) - 1] = '\0';
-	return ret;
-}
-
-
-
-/* ==========================================================================
+   ==========================================================================
     Guess what! It prints help into stdout! Would you belive that?
    ========================================================================== */
 static int config_print_help
@@ -325,47 +244,6 @@ static int config_get_number
 
 
 /* ==========================================================================
-    Parse arguments passed from ini file. This funciton is called by inih
-    each time it reads valid option from file.
-   ========================================================================== */
-static int config_parse_ini
-(
-	void        *user,     /* user pointer - not used */
-	const char  *section,  /* section name of current option */
-	const char  *name,     /* name of current option */
-	const char  *value,    /* value of current option */
-	int          lineno    /* line of current option */
-)
-{
-	(void)user;
-	(void)lineno;
-
-	/* parsing section  */
-
-	if (strcmp(section, "") == 0)
-    {
-		if (strcmp(name, "debug") == 0)
-			PARSE_INT_INI_NS(debug, 0, 1)
-		else if (strcmp(name, "daemon") == 0)
-			PARSE_INT_INI_NS(daemon, 0, 1)
-	}
-
-	/* parsing section mqtt */
-
-	else if (strcmp(section, "mqtt") == 0)
-    {
-		if (strcmp(name, "host") == 0)
-			PARSE_STR_INI(mqtt, host)
-		else if (strcmp(name, "port") == 0)
-			PARSE_INT_INI(mqtt, port, 1, 65535)
-	}
-
-	/* as far as inih is concerned, 1 is OK, while 0 would be error */
-	return 1;
-}
-
-
-/* ==========================================================================
     Parse arguments passed from command line using getopt_long
    ========================================================================== */
 static int config_parse_args
@@ -384,13 +262,13 @@ static int config_parse_args
 	{
 		switch (arg)
 		{
-		case 'm': config_print_help(argv[0]); return -2;
+		case 'h': config_print_help(argv[0]); return -2;
 		case 'v': config_print_version(); return -3;
 		case 'c': /* already parsed, ignore */; break;
 		case 'd': g_config.debug = 1; break;
 		case 'D': g_config.daemon = 1; break;
 		case 'l': PARSE_STR(logfile, optarg); break;
-		case 'h': PARSE_STR(mqtt_host, optarg); break;
+		case 'm': PARSE_STR(mqtt_host, optarg); break;
 		case 'p': PARSE_INT(mqtt_port, optarg, 1, 65535); break;
 
 
@@ -420,17 +298,12 @@ static int config_parse_args
       / /_/ // /_/ // /_/ // // // /__   / __// /_/ // / / // /__ (__  )
      / .___/ \__,_//_.___//_//_/ \___/  /_/   \__,_//_/ /_/ \___//____/
     /_/
-   ========================================================================== */
-
-
-
-/* ==========================================================================
+   ==========================================================================
     Parses options in following order (privided that parsing was enabled
     during compilation).
 
     - set option values to their well-known default values
     - if proper c define (-D) is enabled, overwrite that option with it
-    - overwrite options specified in ini
     - overwrite options passed by command line
    ========================================================================== */
 int config_init
@@ -439,9 +312,6 @@ int config_init
 	char  *argv[]  /* program arguments from command line */
 )
 {
-	const char  *file;   /* path to ini config file */
-	int          arg;    /* current argument from getopt() */
-	STRUCT_OPTION_LONGOPTS;
 	int          ret;    /* function return value */
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
@@ -482,73 +352,13 @@ int config_init
 #endif
 
 
-	/* next, process .ini file */
-
-	/* custom file can only be passed via command line if command
-	 * line parsing is enabled, right? */
-	arg = -1;
-	optind = 1;
-	file = SHELLDOWN_CONFIG_PATH_DEFAULT;
-
-	/* we need to scan arg list to check if user provided custom
-	 * file path. Even though we only look for option "-c" we need
-	 * to use full shortopts with all expected arguments or bug may
-	 * occur. getopt(3) can take multiple arguments (flags) with
-	 * single '-', like -arg, where a, r and g are different flags
-	 * that also could be specified like -a -r -g.  This is for
-	 * convinience, but if not carefull can lead to tricky bug.
-	 * Consider user argument "-lnotice" where -l is option to
-	 * determing log level and notice is its argument.  Now
-	 * shortopts is only "c:" so getopt(3) does not know that
-	 * -l takes an argument and it automatically assumes it does
-	 * not. So getopt(3) will check for -l and that will return
-	 * unknown option error, then it will check 'n' (yes!), o, t,
-	 * i and then "c". At this point getopt(3) knows that "c"
-	 * takes argument which in this case will be "e". To avoid
-	 * that, we getopt(3) need to know that "-l" takes an
-	 * argument, and for that we need to pass every option we
-	 * support to shortopts. */
-	while ((arg = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1)
-	{
-		if (arg == 'c')
-		{
-			file = optarg;
-
-			/* since we are looking only for "-c" argument, when we
-			 * find it, we can stop searching */
-			break;
-		}
-
-		/* ignore any unknown options, time will come to parse them too */
-	}
-
-	/* parse options from .ini config file, overwritting default
-	 * and/or compile time options */
-	if (ini_parse(file, config_parse_ini, NULL) != 0)
-	{
-		/* failed to parse config file.
-		 *
-		 * But if ini file does not exist, do not crash the app,
-		 * and let it run with default options. Only crash app
-		 * when user explicitly passed config with '-c'. It is
-		 * obvious then that user really wants custom option, so
-		 * if they are not available, he should be notified. */
-		if (arg != 'c' && errno == ENOENT)
-			goto not_an_error_after_all;
-
-		fprintf(stderr, "error while parsing config file: %s: %s\n",
-				file, strerror(errno));
-		return -1;
-	}
-
-not_an_error_after_all:
 	/* parse options passed from command line - these have the
 	 * highest priority and will overwrite any other options */
 	optind = 1;
 	ret = config_parse_args(argc, argv);
 
-	/* all good, initialize global config pointer with config
-	 * object */
+	/* all good, initialize global config pointer
+	 * with config object */
 	config = (const struct config *)&g_config;
 	return ret;
 }
