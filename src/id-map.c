@@ -4,7 +4,7 @@
    ==========================================================================
          ------------------------------------------------------------
         / id-map - a very minimal linked list implementation         \
-        \ that holds from->to map                                    /
+        \ that holds src->dst map                                    /
          ------------------------------------------------------------
           \
            \ ,   _ ___.--'''`--''//-,-_--_.
@@ -56,7 +56,7 @@
 static id_map_t id_map_find_node
 (
 	id_map_t         head,  /* head of the list to search */
-	const char      *from,  /* from shelly id to look for */
+	const char      *src,   /* src shelly topic to look for */
 	id_map_t        *prev   /* previous node to returned node */
 )
 {
@@ -66,7 +66,7 @@ static id_map_t id_map_find_node
 
 	for (*prev = NULL, node = head; node != NULL; node = node->next)
 	{
-		if (strcmp(node->from, from) == 0)
+		if (strcmp(node->src, src) == 0)
 			return node; /* this is the node you are looking for */
 
 		*prev = node;
@@ -78,7 +78,7 @@ static id_map_t id_map_find_node
 
 
 /* ==========================================================================
-    Creates new node with copy of $from and $to
+    Creates new node with copy of $src and $dst
 
     Returns NULL on error or address on success
 
@@ -87,8 +87,8 @@ static id_map_t id_map_find_node
    ========================================================================== */
 static id_map_t id_map_new_node
 (
-	const char      *from,  /* from id to create new node with */
-	const char      *to     /* to id to create new node with */
+	const char      *src,  /* src topic to create new node with */
+	const char      *dst   /* dst topic to create new node with */
 )
 {
 	id_map_t        node;  /* pointer to new node */
@@ -98,18 +98,18 @@ static id_map_t id_map_new_node
 	/* allocate enough memory for strings (plus 1 for null character)
 	 * and node in one malloc(), this way we will have only 1
 	 * allocation (for node and string) instead of 2.  */
-	node = malloc(sizeof(struct id_map) + strlen(from)+1 + strlen(to)+1);
+	node = malloc(sizeof(struct id_map) + strlen(src)+1 + strlen(dst)+1);
 	if (node == NULL)
 		return NULL;
 
 	/* we have flat memory allocated, now we need
 	 * to set list member to point to correct memory */
-	node->from = ((char *)node) + sizeof(struct id_map);
-	node->to   = node->from + strlen(from)+1;
+	node->src = ((char *)node) + sizeof(struct id_map);
+	node->dst = node->src + strlen(src)+1;
 
 	/* make a copy of members */
-	strcpy(node->from, from);
-	strcpy(node->to, to);
+	strcpy(node->src, src);
+	strcpy(node->dst, dst);
 
 	/* since this is new node, it
 	 * doesn't point to anything */
@@ -140,7 +140,7 @@ int id_map_init
 }
 
 /* ==========================================================================
-    Adds new node with $from and $to to list pointed by 'head'
+    Adds new node with $src and $dst to list pointed by 'head'
 
     Function will add node just after $head, not at the end of list - this is
     so we can gain some speed by not searching for last node. So when $head
@@ -157,13 +157,13 @@ int id_map_init
         +---+     +---+     +---+
 
     If $head is NULL (meaning list is empty), function will create new list
-    and add $from and $to to $head
+    and add $src and $dst to $head
    ========================================================================== */
 int id_map_add
 (
 	id_map_t    *head,  /* head of list where to add new node to */
-	const char  *from,  /* shelly from string */
-	const char  *to     /* shelly to string */
+	const char  *src,   /* src topic */
+	const char  *dst    /* dst topic */
 )
 {
 	id_map_t     node;  /* newly created node */
@@ -171,8 +171,8 @@ int id_map_add
 
 
 	valid(head, EINVAL);
-	valid(from, EINVAL);
-	valid(to, EINVAL);
+	valid(src, EINVAL);
+	valid(dst, EINVAL);
 
 	/* create new node, let's call it 3
 	 *           +---+
@@ -182,7 +182,7 @@ int id_map_add
 	 *      +---+     +---+
 	 *      | 1 | --> | 2 |
 	 *      +---+     +---+ */
-	node = id_map_new_node(from, to);
+	node = id_map_new_node(src, dst);
 	if (node == NULL)
 		return -1;
 
@@ -226,11 +226,11 @@ int id_map_add
 
 
 /* ==========================================================================
-    Removes $from from list $head. This will remove whole list object, so
-    corresponding $to (in node object) will be removed as well. $from
+    Removes $src from list $head. This will remove whole list object, so
+    corresponding $dst (in node object) will be removed as well. $src
     is a uniq key, so we look only for this when deleting.
 
-    - if $from is in $head node, function will modify $head pointer
+    - if $src is in $head node, function will modify $head pointer
       so $head points to proper node
 
     - if $topic is in $head node and $head turns out to be last element
@@ -239,7 +239,7 @@ int id_map_add
 int id_map_delete
 (
 	id_map_t    *head,        /* pointer to head of the list */
-	const char  *from         /* node with that shelly from to delete */
+	const char  *src          /* node with src topic to delete */
 )
 {
 	id_map_t     node;       /* found node for with 'topic' */
@@ -247,13 +247,13 @@ int id_map_delete
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
-	valid(from, EINVAL);
+	valid(src, EINVAL);
 	valid(head, EINVAL);
 	valid(*head, ENOENT);
 
-	node = id_map_find_node(*head, from, &prev_node);
+	node = id_map_find_node(*head, src, &prev_node);
 	if (node == NULL)
-		return_errno(ENOENT); /* node with $from does not exist */
+		return_errno(ENOENT); /* node with $src does not exist */
 
 	/* initial state of the list
 	 *            +---+     +---+     +---+
@@ -351,7 +351,7 @@ int id_map_print
 
 	el_print(ELN, "contents of id map:");
 	for (; head != NULL; head = head->next)
-		el_print(ELN, "    %s -> %s", head->from, head->to);
+		el_print(ELN, "    %s -> %s", head->src, head->dst);
 
 	return 0;
 }
@@ -363,16 +363,16 @@ int id_map_print
    ========================================================================== */
 int id_map_add_from_file
 (
-	id_map_t    *head,     /* list to append map from file */
-	const char  *file      /* file to read map from */
+	id_map_t    *head,            /* list to append map from file */
+	const char  *file             /* file to read map from */
 )
 {
-	FILE        *f;        /* pointer to opened file */
-	int         lineno;    /* current line number */
-	char       *from;      /* shelly from read from a file */
-	char       *to;        /* shelly from read from a file */
-	char        line[256]; /* line read from a file */
-	char       *linep;     /* pointer to a line[], for easy manipulation */
+	FILE        *f;               /* pointer to opened file */
+	int         lineno;           /* current line number */
+	char       *src;              /* shelly src read from a file */
+	char       *dst;              /* shelly dst read from a file */
+	char        line[ID_MAP_MAX]; /* line read from a file */
+	char       *linep;            /* pointer to a line[] */
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 	if ((f = fopen(file, "r")) == NULL)
@@ -422,33 +422,33 @@ int id_map_add_from_file
 		while (*linep != '\0' && isspace(*linep)) linep++;
 		if (*linep == '\0') continue; /* empty line */
 
-		/* linep points to start of a shelly from part */
-		from = linep;
+		/* linep points to start of a shelly src part */
+		src = linep;
 		/* look for a whitespace, which is a delimiter */
 		while (*linep != '\0' && !isspace(*linep)) linep++;
 		if (*linep == '\0')
-			continue_print(ELC, "[%s:%d] missing 'to' part", file, lineno);
+			continue_print(ELC, "[%s:%d] missing 'dst' part", file, lineno);
 		/* linep is pointing to a whitespace, replace that with
-		 * '\0', so *from is a valid c-string with shelly from */
+		 * '\0', so $src is a valid c-string with source topic */
 		*linep++ = '\0';
 
-		/* now let's find "to" part of map */
+		/* now let's find $dst part of map */
 		/* again, skip leading whitespaces */
 		while (*linep != '\0' && isspace(*linep)) linep++;
 		if (*linep == '\0')
-			continue_print(ELC, "[%s:%d] missing 'to' part", file, lineno);
-		/* found "to" part */
-		to = linep;
+			continue_print(ELC, "[%s:%d] missing 'dst' part", file, lineno);
+		/* found $dst part */
+		dst = linep;
 		/* let's find first whitespace, in case user left some
 		 * whitespaces at the end of file, we are guaranteed to
 		 * at least find '\n' */
 		while (!isspace(*linep)) linep++;
-		/* nullify it to get valid c-string in $to */
+		/* nullify it to get valid c-string in $dst */
 		*linep++ = '\0';
 
 		/* finnaly, let's add read map to a database */
-		if (id_map_add(head, from, to))
-			return_perror(ELF, "id_map_add(%s, %s)", from, to);
+		if (id_map_add(head, src, dst))
+			return_perror(ELF, "id_map_add(%s, %s)", src, dst);
 
 		/* and that concludes parsing of this line,
 		 * move out to the next one */
