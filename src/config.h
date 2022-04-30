@@ -17,13 +17,6 @@
 
 struct config
 {
-
-
-	/* ==================================================================
-	     section options
-	   ================================================================== */
-
-
 	/* enable debug logging */
 	int  debug;
 
@@ -31,15 +24,10 @@ struct config
 	int  daemon;
 
 	/* where logs should be stored */
-	char logfile[PATH_MAX];
+	char log_file[PATH_MAX];
 
 	/* path to a file with from-to map */
 	char id_map_file[PATH_MAX];
-
-	/* ==================================================================
-	    mqtt section options
-	   ================================================================== */
-
 
 	/* broker ip address */
 	char  mqtt_host[15 + 1];

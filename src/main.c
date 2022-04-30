@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "id-map.h"
 
 /* ==========================================================================
           __             __                     __   _
@@ -149,7 +150,7 @@ int main
 			/* we will be outputing logs to file, so
 			 * we need to open file now */
 			el_option(EL_OUT, EL_OUT_FILE);
-			if (el_option(EL_FPATH, config->logfile) != 0)
+			if (el_option(EL_FPATH, config->log_file) != 0)
 			{
 				if (errno == ENAMETOOLONG || errno == EINVAL)
 					/* in general embedlog will try to recover from
@@ -170,7 +171,7 @@ int main
 				 * integrator in case file output was the only
 				 * output enabled */
 				fprintf(stderr, "w/failed to open log file %s, %s\n",
-						config->logfile, strerror(errno));
+						config->log_file, strerror(errno));
 			}
 		}
 	}

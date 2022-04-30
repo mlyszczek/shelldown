@@ -76,41 +76,14 @@
 		return -1; \
 	}
 
-#define PARSE_MAP(OPTNAME, MAPNAME) \
-	{ \
-		long long  val; \
-		if (config_parse_map(MAPNAME, \
-					&val, g_shelldown_ ## OPTNAME ## _map) != 0) \
-			return -1; \
-		g_config.OPTNAME = val; \
-	}
-
 #define PARSE_STR(OPTNAME, OPTARG) \
 	{ \
 		VALID_STR(OPTNAME, OPTARG); \
 		strcpy(g_config.OPTNAME, OPTARG); \
 	}
 
-#define PARSE_INT_INI_NS(OPTNAME, MINV, MAXV) \
-	PARSE_INT(OPTNAME, value, MINV, MAXV)
-
-#define PARSE_INT_INI(SECTION, OPTNAME, MINV, MAXV) \
-	PARSE_INT(SECTION ## _ ## OPTNAME, value, MINV, MAXV)
-
-#define PARSE_STR_INI_NS(OPTNAME) \
-	PARSE_STR(OPTNAME, value)
-
-#define PARSE_STR_INI(SECTION, OPTNAME) \
-	PARSE_STR(SECTION ## _ ## OPTNAME, value)
-
-#define PARSE_MAP_INI_NS(OPTNAME) \
-	PARSE_MAP(OPTNAME, value)
-
-#define PARSE_MAP_INI(SECTION, OPTNAME) \
-	PARSE_MAP(SECTION ## _ ## OPTNAME, value)
-
 /* list of short options for getopt_long */
-static const char *shortopts = ":hvc:dm:Dh:p:i:";
+static const char *shortopts = ":hvdm:Dh:p:i:";
 
 
 /* array of long options for getop_long. This is defined as macro so it
@@ -123,22 +96,15 @@ static const char *shortopts = ":hvc:dm:Dh:p:i:";
 	{ \
 		{"help",        no_argument,       NULL, 'h'}, \
 		{"version",     no_argument,       NULL, 'v'}, \
-		{"config",      required_argument, NULL, 'c'}, \
 		{"debug",       no_argument,       NULL, 'd'}, \
 		{"daemon",      no_argument,       NULL, 'D'}, \
-		{"logfile",     required_argument, NULL, 'l'}, \
+		{"log-file",    required_argument, NULL, 'l'}, \
 		{"id-map-file", required_argument, NULL, 'i'}, \
 		{"mqtt-host",   required_argument, NULL, 'm'}, \
 		{"mqtt-port",   required_argument, NULL, 'p'}, \
  \
 		{NULL, 0, NULL, 0} \
 	}
-
-struct config_map
-{
-	const char  *str;
-	long long    val;
-};
 
 /* define config object in static storage duration - c'mon, you
  * won't be passing pointer to config to every function, will you? */
@@ -152,10 +118,6 @@ static struct config  g_config;
  * only be used with configs from /etc which should be readonly by
  * the programs */
 const struct config  *config;
-
-/* arrays of strings of options that have mapped values, used
- * to map config ints back into strings for nice config_dump() */
-
 
 
 /* ==========================================================================
@@ -179,8 +141,7 @@ static int config_print_help
 "options:\n"
 "\t-h, --help                print this help and exit\n"
 "\t-v, --version             print version information and exit\n"
-"\t-c, --config=<file>       config file to use\n"
-"\t-l, --logfile=<path>      where to store logs\n"
+"\t-l, --log-file=<path>     where to store logs\n"
 "\t-i, --id-map-file=<path>  path to and id-map file\n"
 "\t-d, --debug               enable debug logging\n"
 "\t-D, --daemon              run as daemon\n"
@@ -222,24 +183,15 @@ static int config_get_number
 
 
 	if (*num == '\0')
-	{
-		errno = EINVAL;
-		return -1;
-	}
+		return_errno(EINVAL);
 
 	*n = strtol(num, (char **)&ep, 10);
 
 	if (*ep != '\0')
-	{
-		errno = EINVAL;
-		return -1;
-	}
+		return_errno(EINVAL);
 
 	if (*n == LONG_MAX || *n == LONG_MIN)
-	{
-		errno = ERANGE;
-		return -1;
-	}
+		return_errno(ERANGE)
 
 	return 0;
 }
@@ -266,10 +218,9 @@ static int config_parse_args
 		{
 		case 'h': config_print_help(argv[0]); return -2;
 		case 'v': config_print_version(); return -3;
-		case 'c': /* already parsed, ignore */; break;
 		case 'd': g_config.debug = 1; break;
 		case 'D': g_config.daemon = 1; break;
-		case 'l': PARSE_STR(logfile, optarg); break;
+		case 'l': PARSE_STR(log_file, optarg); break;
 		case 'i': PARSE_STR(id_map_file, optarg); break;
 		case 'm': PARSE_STR(mqtt_host, optarg); break;
 		case 'p': PARSE_INT(mqtt_port, optarg, 1, 65535); break;
@@ -334,26 +285,10 @@ int config_init
 	/* set config with default, well known values */
 	g_config.debug = 0;
 	g_config.daemon = 0;
+	strcpy(g_config.log_file, "/var/log/shelldown.log");
+	strcpy(g_config.id_map_file, "/etc/shelldown-map");
 	strcpy(g_config.mqtt_host, "127.0.0.1");
 	g_config.mqtt_port = 1883;
-
-	/* overwrite values with those define in compiletime */
-#ifdef SHELLDOWN_CONFIG_DEBUG
-	g_config.debug = SHELLDOWN_CONFIG_DEBUG;
-#endif
-
-#ifdef SHELLDOWN_CONFIG_DAEMON
-	g_config.daemon = SHELLDOWN_CONFIG_DAEMON;
-#endif
-
-#ifdef SHELLDOWN_CONFIG_MQTT_HOST
-	g_config.mqtt_host = SHELLDOWN_CONFIG_MQTT_HOST;
-#endif
-
-#ifdef SHELLDOWN_CONFIG_MQTT_PORT
-	g_config.mqtt_port = SHELLDOWN_CONFIG_MQTT_PORT;
-#endif
-
 
 	/* parse options passed from command line - these have the
 	 * highest priority and will overwrite any other options */
@@ -387,14 +322,6 @@ void config_dump
 #define CONFIG_PRINT_VAR(VAR, MODIFIER) \
 	el_print(ELN, "%s%s: "MODIFIER, #VAR, padder + strlen(#VAR), VAR)
 
-#define CONFIG_PRINT_MAP(FIELD, FLAG) \
-	{ \
-		char  buf[0]; \
-		el_print(ELN, "%s%s: %s", #FIELD, padder + strlen(#FIELD), \
-			config_parse_map_by_value(g_config.FIELD, \
-				FLAG, buf, g_shelldown_ ## FIELD ## _map)); \
-	}
-
 	const char *padder = "........................";
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
@@ -403,6 +330,7 @@ void config_dump
 
 	CONFIG_PRINT_FIELD(debug, "%i");
 	CONFIG_PRINT_FIELD(daemon, "%i");
+	CONFIG_PRINT_FIELD(log_file, "%s");
 	CONFIG_PRINT_FIELD(id_map_file, "%s");
 	CONFIG_PRINT_FIELD(mqtt_host, "%s");
 	CONFIG_PRINT_FIELD(mqtt_port, "%i");
