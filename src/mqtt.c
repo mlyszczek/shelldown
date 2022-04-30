@@ -39,6 +39,187 @@ extern volatile int g_run;
 static struct mosquitto *g_mqtt;
 id_map_t  topic_map;
 
+#define json_object_get_or_error(m, v, r, k) \
+	v = json_object_get(r, k); \
+	if (v == NULL) \
+		goto_print(error, ELW, "["m"] no "k" in json: %s", payload)
+
+
+/* ==========================================================================
+                ____ ___   ____ _ / /_ / /_   ____   __  __ / /_
+               / __ `__ \ / __ `// __// __/  / __ \ / / / // __ \
+              / / / / / // /_/ // /_ / /_   / /_/ // /_/ // /_/ /
+             /_/ /_/ /_/ \__, / \__/ \__/  / .___/ \__,_//_.___/
+                           /_/            /_/
+   ==========================================================================
+    Publishes bool as "on" or "off"
+   ========================================================================== */
+static void pub_bool
+(
+	char        *topic,       /* first part of topic (base + device id) */
+	const char  *dtopic,      /* second part of topic, device specific data */
+	int          val,         /* 0 - off, !0 - on */
+	int          qos,         /* qos to send message with */
+	int          retain       /* mqtt retain flag */
+)
+{
+	char         payload[4];  /* on or off */
+	int          ret;         /* ret code from mosquitto_publish */
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
+	strcat(topic, dtopic);
+	strcpy(payload, val ? "on" : "off");
+	el_print(ELD, "mqtt-pub-bool: %s: %s", topic, payload);
+	ret = mosquitto_publish(g_mqtt, NULL, topic,
+			strlen(payload)+1, payload, qos, retain);
+	if (ret)
+		el_print(ELW, "error sending %s to %s, reason: %s", payload, topic,
+				mosquitto_strerror(ret));
+}
+
+
+/* ==========================================================================
+    Publishes string on topic, as is
+   ========================================================================== */
+static void pub_string
+(
+	char        *topic,      /* first part of topic (base + device id) */
+	const char  *dtopic,     /* second part of topic, device specific data */
+	const char  *payload,    /* payload to send */
+	int          qos,        /* qos to send message with */
+	int          retain      /* mqtt retain flag */
+)
+{
+	int          ret;        /* ret code from mosquitto_publish */
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
+	strcat(topic, dtopic);
+	el_print(ELD, "mqtt-pub: %s: %s", topic, payload);
+	ret = mosquitto_publish(g_mqtt, NULL, topic,
+			strlen(payload)+1, payload, qos, retain);
+	if (ret)
+		el_print(ELW, "error sending %s to %s, reason: %s", payload, topic,
+				mosquitto_strerror(ret));
+
+}
+
+
+/* ==========================================================================
+    Converts double $num to string, and the publishes message on topic+dropic
+   ========================================================================== */
+static void pub_number
+(
+	char        *topic,      /* first part of topic (base + device id) */
+	const char  *dtopic,     /* second part of topic, device specific data */
+	double       num,        /* number to publish (as string) */
+	int          qos,        /* qos to send message with */
+	int          retain,     /* mqtt retain flag */
+	int          precision   /* float number precision */
+)
+{
+	char         payload[128]; /* data to send over mqtt */
+	int          ret;          /* ret code from mosquitto_publish */
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
+	snprintf(payload, sizeof(payload), "%.*f", precision, num);
+	strcat(topic, dtopic);
+	el_print(ELD, "mqtt-pub: %s: %s", topic, payload);
+	ret = mosquitto_publish(g_mqtt, NULL, topic,
+			strlen(payload)+1, payload, qos, retain);
+	if (ret)
+		el_print(ELW, "error sending %s to %s, reason: %s", payload, topic,
+				mosquitto_strerror(ret));
+
+}
+
+
+/* ==========================================================================
+          ____   __  __ / /_     ____/ /___  _   __ (_)_____ ___   _____
+         / __ \ / / / // __ \   / __  // _ \| | / // // ___// _ \ / ___/
+        / /_/ // /_/ // /_/ /  / /_/ //  __/| |/ // // /__ /  __/(__  )
+       / .___/ \__,_//_.___/   \__,_/ \___/ |___//_/ \___/ \___//____/
+      /_/
+   ==========================================================================
+    Prases shelly plus 1pm specific data and publishes it on old mqtt format
+   ========================================================================== */
+void mqtt_publish_shellyplus1pm
+(
+	char        *topic,      /* part of topic, editable */
+	const char  *payload,    /* jsonrpc payload from shelly */
+	int          qos,        /* qos to send message with */
+	int          retain      /* mqtt retain flag */
+)
+{
+	json_t      *root;       /* json message from shelly */
+	json_t      *params;     /* params part of json object */
+	json_t      *swtch;      /* switch component */
+	json_t      *value;      /* json value for foreach loop */
+	const char  *key;        /* json key for foreach loop */
+	char        *topic_end;  /* pointer to the end of $topic */
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+	topic_end = strchr(topic, '\0');
+
+	root = json_loads(payload, 0, NULL);
+	if (root == NULL)
+		goto_print(error, ELW, "[s1pm] invalid json received %s", payload);
+
+	/* shelly plus pm1 has only one switch, so id will always be 0 */
+	json_object_get_or_error("s1pm", params, root, "params");
+	json_object_get_or_error("s1pm", swtch, params, "switch:0");
+	json_object_foreach(swtch, key, value)
+	{
+		/* each pub function will append to $topic, so if we go
+		 * mutliple times in loop, topic will get malformed, so we
+		 * reset it's state before every call */
+		*topic_end = '\0';
+
+		if (strcmp(key, "apower") == cmp_equal)
+			pub_number(topic, "relay/0/power", json_number_value(value),
+					qos, retain, 2);
+
+		else if (strcmp(key, "voltage") == cmp_equal)
+			pub_number(topic, "relay/0/voltage", json_number_value(value),
+					qos, retain, 2);
+
+		else if (strcmp(key, "output") == cmp_equal)
+			pub_bool(topic, "relay/0", json_boolean_value(value), qos, retain);
+
+		else if (strcmp(key, "temperature") == cmp_equal)
+		{
+			json_t  *temp_c;  /* internal temp in °C */
+			json_t  *temp_f;  /* internal temp in °F */
+			/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
+			json_object_get_or_error("s1pm", temp_c, value, "tC");
+			json_object_get_or_error("s1pm", temp_f, value, "tF");
+
+			pub_number(topic, "temperature", json_number_value(temp_c),
+					qos, retain, 1);
+			pub_number(topic, "temperature_f", json_number_value(temp_c),
+					qos, retain, 1);
+		}
+
+		else if ((strcmp(key, "id") & strcmp(key, "source") &
+				strcmp(key, "timer_started_at") &
+				strcmp(key, "timer_duration")) == cmp_equal)
+			continue; /* ignore unusable fields */
+
+		else
+			el_print(ELN, "unkown key received: %s, please report "
+					"bug for missing key, so it can be ignored or "
+					"implemented", key);
+	}
+
+
+error:
+	json_decref(root);
+}
+
 
 /* ==========================================================================
                      ____   _____ (_)_   __ ____ _ / /_ ___
@@ -136,81 +317,6 @@ static void mqtt_on_disconnect
 	/* unexpected disconnect, try to reconnect */
 	while (mosquitto_reconnect(mqtt) != 0)
 		el_print(ELC, "calling mosquitto_reconnect()"); /* STOP. GIVING. UP! */
-}
-
-
-
-/* ==========================================================================
-    Converts double $num to string, and the publishes message on topic+dropic
-   ========================================================================== */
-static void pub_number
-(
-	char        *topic,
-	const char  *dtopic,
-	double       num,
-	int          qos,        /* qos to send message with */
-	int          retain,     /* mqtt retain flag */
-	int          precision
-)
-{
-	char         payload[128]; /* data to send over mqtt */
-	int          ret;          /* ret code from mosquitto_publish */
-	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-
-	snprintf(payload, sizeof(payload), "%.*f", precision, num);
-	strcat(topic, dtopic);
-	el_print(ELD, "mqtt-pub: %s: %s", topic, payload);
-	ret = mosquitto_publish(g_mqtt, NULL, topic,
-			strlen(payload)+1, payload, qos, retain);
-	if (ret)
-		el_print(ELW, "error sending %s to %s, reason: %s", payload, topic,
-				mosquitto_strerror(ret));
-
-}
-
-/* ==========================================================================
-    Prases shelly plus 1pm specific data and publishes it on old mqtt format
-   ========================================================================== */
-void mqtt_publish_shellyplus1pm
-(
-	char        *topic,      /* part of topic, editable */
-	const char  *payload,    /* jsonrpc payload from shelly */
-	int          qos,        /* qos to send message with */
-	int          retain      /* mqtt retain flag */
-)
-{
-	json_t      *root;       /* json message from shelly */
-	json_t      *params;     /* params part of json object */
-	json_t      *swtch;      /* switch component */
-	json_t      *value;      /* json value for foreach loop */
-	const char  *key;        /* json key for foreach loop */
-	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-
-	root = json_loads(payload, 0, NULL);
-	if (root == NULL)
-		goto_print(error, ELW, "[s1pm] invalid json received %s", payload);
-
-	params = json_object_get(root, "params");
-	if (params == NULL)
-		goto_print(error, ELW, "[s1pm] no params in json: %s", payload);
-
-	/* shelly plus pm1 has only one switch, so id will always be 0 */
-	swtch = json_object_get(params, "switch:0");
-	if (swtch == NULL)
-		goto_print(error, ELW, "[s1pm] no switch:0 in params: %s", payload);
-
-	json_object_foreach(swtch, key, value)
-	{
-		if (strcmp(key, "apower") == cmp_equal)
-			pub_number(topic, "relay/0/power", json_number_value(value),
-					qos, retain, 2);
-	}
-
-
-error:
-	json_decref(root);
 }
 
 /* ==========================================================================
