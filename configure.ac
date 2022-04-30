@@ -18,11 +18,12 @@ AC_SUBST(COVERAGE_LDFLAGS)
 
 
 AC_SEARCH_LIBS([el_init], [embedlog])
-AC_SEARCH_LIBS([ini_parse], [inih])
+AC_SEARCH_LIBS([mosquitto_connect], [mosquitto])
+AC_SEARCH_LIBS([json_loads], [jansson])
 
-AC_DEFINE([SHELLDOWN_CONFIG_PATH_DEFAULT], ["/etc/shelldown.ini"],
-    [default config file for program])
-AC_DEFINE([INI_HANDLER_LINENO], [1], ["print ini line on errors"])
+AC_DEFINE([ID_MAP_MAX], [256], ["max id map line"])
+AC_DEFINE([TOPIC_MAX], [ID_MAP_MAX], ["max topic size"])
+
 
 
 # --enable-analyzer

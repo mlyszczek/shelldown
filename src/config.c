@@ -83,7 +83,7 @@
 	}
 
 /* list of short options for getopt_long */
-static const char *shortopts = ":hvdm:Dh:p:i:";
+static const char *shortopts = ":hvdm:Dh:p:i:t:";
 
 
 /* array of long options for getop_long. This is defined as macro so it
@@ -100,6 +100,7 @@ static const char *shortopts = ":hvdm:Dh:p:i:";
 		{"daemon",      no_argument,       NULL, 'D'}, \
 		{"log-file",    required_argument, NULL, 'l'}, \
 		{"id-map-file", required_argument, NULL, 'i'}, \
+		{"topic-base",  required_argument, NULL, 't'}, \
 		{"mqtt-host",   required_argument, NULL, 'm'}, \
 		{"mqtt-port",   required_argument, NULL, 'p'}, \
  \
@@ -145,6 +146,7 @@ static int config_print_help
 "\t-i, --id-map-file=<path>  path to and id-map file\n"
 "\t-d, --debug               enable debug logging\n"
 "\t-D, --daemon              run as daemon\n"
+"\t-t, --topic-base=<topic>  base topic for all messages (default: shellies/)\n"
 "\t-m, --mqtt-host=<ip>      broker ip address\n"
 "\t-p, --mqtt-port=<port>    broker port\n"
 
@@ -222,6 +224,7 @@ static int config_parse_args
 		case 'D': g_config.daemon = 1; break;
 		case 'l': PARSE_STR(log_file, optarg); break;
 		case 'i': PARSE_STR(id_map_file, optarg); break;
+		case 't': PARSE_STR(topic_base, optarg); break;
 		case 'm': PARSE_STR(mqtt_host, optarg); break;
 		case 'p': PARSE_INT(mqtt_port, optarg, 1, 65535); break;
 
@@ -285,6 +288,7 @@ int config_init
 	/* set config with default, well known values */
 	g_config.debug = 0;
 	g_config.daemon = 0;
+	strcpy(g_config.topic_base, "shellies/");
 	strcpy(g_config.log_file, "/var/log/shelldown.log");
 	strcpy(g_config.id_map_file, "/etc/shelldown-map");
 	strcpy(g_config.mqtt_host, "127.0.0.1");
@@ -330,6 +334,7 @@ void config_dump
 
 	CONFIG_PRINT_FIELD(debug, "%i");
 	CONFIG_PRINT_FIELD(daemon, "%i");
+	CONFIG_PRINT_FIELD(topic_base, "%s");
 	CONFIG_PRINT_FIELD(log_file, "%s");
 	CONFIG_PRINT_FIELD(id_map_file, "%s");
 	CONFIG_PRINT_FIELD(mqtt_host, "%s");

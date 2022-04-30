@@ -1,5 +1,5 @@
-shelldown_source = config.c id-map.c main.c
-shelldown_headers = config.h macros.h id-map.h
+shelldown_source = config.c id-map.c main.c mqtt.c
+shelldown_headers = config.h macros.h id-map.h mqtt.h
 
 bin_cflags = $(COVERAGE_CFLAGS) -I$(top_srcdir) -I$(top_srcdir)/inc
 bin_ldflags = $(COVERAGE_LDFLAGS)

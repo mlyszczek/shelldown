@@ -9,8 +9,6 @@
       /_//_/ /_/ \___//_/ \__,_/ \__,_/ \___/  /_/  /_//_/ \___//____/
 
    ========================================================================== */
-
-
 #include "config.h"
 
 #include <embedlog.h>
@@ -21,6 +19,9 @@
 #include <string.h>
 
 #include "id-map.h"
+#include "macros.h"
+#include "mqtt.h"
+
 
 /* ==========================================================================
           __             __                     __   _
@@ -30,9 +31,7 @@
    \__,_/ \___/ \___//_/ \__,_//_/    \__,_/ \__//_/ \____//_/ /_//____/
 
    ========================================================================== */
-
-
-static volatile int g_shelldown_run;
+volatile int g_run;
 
 
 /* ==========================================================================
@@ -42,10 +41,7 @@ static volatile int g_shelldown_run;
   / /_/ // /   / / | |/ // /_/ // /_ /  __/  / __// /_/ // / / // /__ (__  )
  / .___//_/   /_/  |___/ \__,_/ \__/ \___/  /_/   \__,_//_/ /_/ \___//____/
 /_/
-   ========================================================================== */
-
-
-/* ==========================================================================
+   ==========================================================================
     Trivial signal handler for SIGINT and SIGTERM, to shutdown program with
     grace.
    ========================================================================== */
@@ -58,20 +54,16 @@ static void sigint_handler
 {
 	(void)signo;
 
-	g_shelldown_run = 0;
+	mqtt_stop();
 }
 
 
 /* ==========================================================================
-                                              _
                            ____ ___   ____ _ (_)____
                           / __ `__ \ / __ `// // __ \
                          / / / / / // /_/ // // / / /
                         /_/ /_/ /_/ \__,_//_//_/ /_/
-
    ========================================================================== */
-
-
 #if SHELLDOWN_ENABLE_LIBRARY
 int shelldown_main
 #else
@@ -91,7 +83,7 @@ int main
 		/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
-		g_shelldown_run = 1;
+		g_run = 1;
 		memset(&sa, 0, sizeof(sa));
 		sa.sa_handler = sigint_handler;
 		sigaction(SIGINT, &sa, NULL);
@@ -180,21 +172,14 @@ int main
 	 * when debugging later */
 	config_dump();
 
-	/* ================================= */
-	/* put your initialization code here */
-	/* ================================= */
+	if (mqtt_init(config->mqtt_host, config->mqtt_port))
+		goto_print(mqtt_error, ELF, "failed to initialize mqtt");
 
 	/* all resources initialized, now start main loop */
 
 	el_print(ELN, "all resources initialized, starting main loop");
 
-
-	while (g_shelldown_run)
-	{
-		/* ======================= */
-		/* put your main code here */
-		/* ======================= */
-	}
+	mqtt_loop_forever();
 
 	/* ========================== */
 	/* put your cleanup code here */
@@ -202,7 +187,7 @@ int main
 
 	ret = 0;
 
-
+mqtt_error:
 	el_print(ELN, "goodbye %s world!", ret ? "cruel" : "beautiful");
 	el_cleanup();
 

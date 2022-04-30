@@ -26,6 +26,7 @@ typedef struct id_map* id_map_t;
 
 int id_map_init(id_map_t *head);
 int id_map_add(id_map_t *head, const char *src, const char *dst);
+const char *id_map_find(id_map_t head, const char *src);
 int id_map_delete(id_map_t *head, const char *src);
 int id_map_clear(id_map_t *head);
 int id_map_print(id_map_t head);

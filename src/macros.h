@@ -10,16 +10,20 @@
 /* macros version 0.2.0 */
 
 #define return_print(r, e, ...) { el_print(__VA_ARGS__); errno = e; return r; }
+#define return_noval_print(...) { el_print(__VA_ARGS__); return; }
 
 #define return_errno(e)     { errno = e; return -1; }
 #define return_perror(...)  { el_perror(__VA_ARGS__); return -1; }
 
 #define goto_perror(l, ...) { el_perror(__VA_ARGS__); goto l; }
+#define goto_print(l, ...)  { el_print(__VA_ARGS__); goto l; }
 
 #define continue_print(...) { el_print(__VA_ARGS__); continue; }
 #define continue_perror(...){ el_perror(__VA_ARGS__); continue; }
 #define break_print(...)    { el_print(__VA_ARGS__); break; }
 
+#define unused(v) (void)v
+#define cmp_equal (0)
 
 /* macros to validate function input arguments */
 

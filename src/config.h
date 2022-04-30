@@ -29,6 +29,9 @@ struct config
 	/* path to a file with from-to map */
 	char id_map_file[PATH_MAX];
 
+	/* base topic added to all messages */
+	char topic_base[128];
+
 	/* broker ip address */
 	char  mqtt_host[15 + 1];
 

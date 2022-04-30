@@ -64,12 +64,13 @@ static id_map_t id_map_find_node
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
-	for (*prev = NULL, node = head; node != NULL; node = node->next)
+	if (prev) *prev = NULL;
+	for (node = head; node != NULL; node = node->next)
 	{
 		if (strcmp(node->src, src) == 0)
 			return node; /* this is the node you are looking for */
 
-		*prev = node;
+		if (prev) *prev = node;
 	}
 
 	/* node of that topic does not exist */
@@ -350,8 +351,8 @@ int id_map_print
 		return_print(0, 0, ELN, "id map id empty");
 
 	el_print(ELN, "contents of id map:");
-	for (; head != NULL; head = head->next)
-		el_print(ELN, "    %s -> %s", head->src, head->dst);
+	id_map_foreach(head)
+		el_print(ELN, "    %s -> %s", node->src, node->dst);
 
 	return 0;
 }
@@ -387,14 +388,14 @@ int id_map_add_from_file
 		/* try to read whole line into buffer */
 		if (fgets(line, sizeof(line), f) == NULL)
 		{
-			/* failed to read anything from a file, whatever happens
-			 * now, we close file as it's no longer useable */
-			fclose(f);
-
 			if (feof(f))
+			{
+				fclose(f);
 				return 0; /* end of file, we parsed it all */
+			}
 
 			/* error reading file */
+			fclose(f);
 			return_perror(ELC, "fgets(%s)", file);
 		}
 
@@ -457,4 +458,25 @@ int id_map_add_from_file
 
 	/* all lines parsed */
 	return 0;
+}
+
+
+/* ==========================================================================
+    Finds $dst in list for given $src. Returned pointer can be accessed only
+    until $src is removed from list or $head is cleared, as returned pointer
+    is an address to memory allocated in head.
+   ========================================================================== */
+const char *id_map_find
+(
+	id_map_t     head,  /* list to search */
+	const char  *src    /* src topic to get matching dst for */
+)
+{
+	id_map_t     node;  /* node for $src */
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
+	node = id_map_find_node(head, src, NULL);
+	if (node == NULL) return NULL;
+	return node->dst;
 }
