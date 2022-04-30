@@ -23,6 +23,8 @@ AC_SEARCH_LIBS([json_loads], [jansson])
 
 AC_DEFINE([ID_MAP_MAX], [256], ["max id map line"])
 AC_DEFINE([TOPIC_MAX], [ID_MAP_MAX], ["max topic size"])
+AC_DEFINE([HIGH_TEMP], [70], ["high temperature threshold"])
+AC_DEFINE([VHIGH_TEMP], [85], ["very high temperature threshold"])
 
 
 

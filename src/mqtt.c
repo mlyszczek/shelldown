@@ -192,6 +192,7 @@ void mqtt_publish_shellyplus1pm
 		{
 			json_t  *temp_c;  /* internal temp in °C */
 			json_t  *temp_f;  /* internal temp in °F */
+			double   temp;    /* temp for temp status calculation */
 			/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
@@ -202,6 +203,14 @@ void mqtt_publish_shellyplus1pm
 					qos, retain, 1);
 			pub_number(topic, "temperature_f", json_number_value(temp_c),
 					qos, retain, 1);
+
+			temp = json_number_value(temp_c);
+			if (temp > VHIGH_TEMP)
+				pub_string(topic, "temperature_status", "Very High", 2, 1);
+			else if (temp > HIGH_TEMP)
+				pub_string(topic, "temperature_status", "High", 2, 1);
+			else
+				pub_string(topic, "temperature_status", "Normal", 2, 1);
 		}
 
 		else if ((strcmp(key, "id") & strcmp(key, "source") &
