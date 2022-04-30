@@ -33,6 +33,9 @@ struct config
 	/* where logs should be stored */
 	char logfile[PATH_MAX];
 
+	/* path to a file with from-to map */
+	char id_map_file[PATH_MAX];
+
 	/* ==================================================================
 	    mqtt section options
 	   ================================================================== */

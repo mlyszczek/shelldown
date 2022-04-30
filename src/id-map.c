@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <embedlog.h>
+#include <ctype.h>
 
 #include "macros.h"
 
@@ -349,5 +350,108 @@ int id_map_print
 	for (; head != NULL; head = head->next)
 		el_print(ELN, "    %s -> %s", head->from, head->to);
 
+	return 0;
+}
+
+
+/* ==========================================================================
+    Reads $file and adds map values from it to $head. File can contain
+    comments (#), and all whitespaces are ignored, so padding is allowed.
+   ========================================================================== */
+int id_map_add_from_file
+(
+	id_map_t    *head,     /* list to append map from file */
+	const char  *file      /* file to read map from */
+)
+{
+	FILE        *f;        /* pointer to opened file */
+	int         lineno;    /* current line number */
+	char       *from;      /* shelly from read from a file */
+	char       *to;        /* shelly from read from a file */
+	char        line[256]; /* line read from a file */
+	char       *linep;     /* pointer to a line[], for easy manipulation */
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+	if ((f = fopen(file, "r")) == NULL)
+		return_perror(ELC, "fopen(%s)", file);
+
+	for (lineno = 1;; lineno++)
+	{
+		/* set last byte of line buffer to something other than
+		 * '\0' to know whether fgets have overwritten it or not */
+		line[sizeof(line) - 1] = 0xaa;
+
+		/* try to read whole line into buffer */
+		if (fgets(line, sizeof(line), f) == NULL)
+		{
+			/* failed to read anything from a file, whatever happens
+			 * now, we close file as it's no longer useable */
+			fclose(f);
+
+			if (feof(f))
+				return 0; /* end of file, we parsed it all */
+
+			/* error reading file */
+			return_perror(ELC, "fgets(%s)", file);
+		}
+
+		/* fgets overwritted last byte with '\0', which means
+		 * it filled whole line buffer with data
+		 *   -- and --
+		 * last character in string is not a new line
+		 * character, so our line buffer turns out to be too
+		 * small and we couln't read whole line into buffer. */
+		if (line[sizeof(line) - 1] == '\0' && line[sizeof(line) - 2] != '\n')
+			continue_print(ELE, "[%s:%d] line to long, ignoring", file, lineno);
+
+		/* line is empty (only new line character is present
+		 *   -- or --
+		 * line is a comment (starting from #) */
+		if (line[0] == '\n' || line[0] == '#')
+			continue;
+
+
+		/* we have full line read, let's parse it */
+		linep = line;
+
+
+		/* skip leading whitespaces */
+		while (*linep != '\0' && isspace(*linep)) linep++;
+		if (*linep == '\0') continue; /* empty line */
+
+		/* linep points to start of a shelly from part */
+		from = linep;
+		/* look for a whitespace, which is a delimiter */
+		while (*linep != '\0' && !isspace(*linep)) linep++;
+		if (*linep == '\0')
+			continue_print(ELC, "[%s:%d] missing 'to' part", file, lineno);
+		/* linep is pointing to a whitespace, replace that with
+		 * '\0', so *from is a valid c-string with shelly from */
+		*linep++ = '\0';
+
+		/* now let's find "to" part of map */
+		/* again, skip leading whitespaces */
+		while (*linep != '\0' && isspace(*linep)) linep++;
+		if (*linep == '\0')
+			continue_print(ELC, "[%s:%d] missing 'to' part", file, lineno);
+		/* found "to" part */
+		to = linep;
+		/* let's find first whitespace, in case user left some
+		 * whitespaces at the end of file, we are guaranteed to
+		 * at least find '\n' */
+		while (!isspace(*linep)) linep++;
+		/* nullify it to get valid c-string in $to */
+		*linep++ = '\0';
+
+		/* finnaly, let's add read map to a database */
+		if (id_map_add(head, from, to))
+			return_perror(ELF, "id_map_add(%s, %s)", from, to);
+
+		/* and that concludes parsing of this line,
+		 * move out to the next one */
+		continue;
+	}
+
+	/* all lines parsed */
 	return 0;
 }

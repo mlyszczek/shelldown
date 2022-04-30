@@ -110,7 +110,7 @@
 	PARSE_MAP(SECTION ## _ ## OPTNAME, value)
 
 /* list of short options for getopt_long */
-static const char *shortopts = ":hvc:dm:Dh:p:";
+static const char *shortopts = ":hvc:dm:Dh:p:i:";
 
 
 /* array of long options for getop_long. This is defined as macro so it
@@ -121,14 +121,15 @@ static const char *shortopts = ":hvc:dm:Dh:p:";
 #define STRUCT_OPTION_LONGOPTS \
 	const struct option longopts[] = \
 	{ \
-		{"help",      no_argument,       NULL, 'h'}, \
-		{"version",   no_argument,       NULL, 'v'}, \
-		{"config",    required_argument, NULL, 'c'}, \
-		{"debug",     no_argument,       NULL, 'd'}, \
-		{"daemon",    no_argument,       NULL, 'D'}, \
-		{"logfile",   required_argument, NULL, 'l'}, \
-		{"mqtt-host", required_argument, NULL, 'm'}, \
-		{"mqtt-port", required_argument, NULL, 'p'}, \
+		{"help",        no_argument,       NULL, 'h'}, \
+		{"version",     no_argument,       NULL, 'v'}, \
+		{"config",      required_argument, NULL, 'c'}, \
+		{"debug",       no_argument,       NULL, 'd'}, \
+		{"daemon",      no_argument,       NULL, 'D'}, \
+		{"logfile",     required_argument, NULL, 'l'}, \
+		{"id-map-file", required_argument, NULL, 'i'}, \
+		{"mqtt-host",   required_argument, NULL, 'm'}, \
+		{"mqtt-port",   required_argument, NULL, 'p'}, \
  \
 		{NULL, 0, NULL, 0} \
 	}
@@ -180,6 +181,7 @@ static int config_print_help
 "\t-v, --version             print version information and exit\n"
 "\t-c, --config=<file>       config file to use\n"
 "\t-l, --logfile=<path>      where to store logs\n"
+"\t-i, --id-map-file=<path>  path to and id-map file\n"
 "\t-d, --debug               enable debug logging\n"
 "\t-D, --daemon              run as daemon\n"
 "\t-m, --mqtt-host=<ip>      broker ip address\n"
@@ -268,6 +270,7 @@ static int config_parse_args
 		case 'd': g_config.debug = 1; break;
 		case 'D': g_config.daemon = 1; break;
 		case 'l': PARSE_STR(logfile, optarg); break;
+		case 'i': PARSE_STR(id_map_file, optarg); break;
 		case 'm': PARSE_STR(mqtt_host, optarg); break;
 		case 'p': PARSE_INT(mqtt_port, optarg, 1, 65535); break;
 
@@ -400,6 +403,7 @@ void config_dump
 
 	CONFIG_PRINT_FIELD(debug, "%i");
 	CONFIG_PRINT_FIELD(daemon, "%i");
+	CONFIG_PRINT_FIELD(id_map_file, "%s");
 	CONFIG_PRINT_FIELD(mqtt_host, "%s");
 	CONFIG_PRINT_FIELD(mqtt_port, "%i");
 

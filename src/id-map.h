@@ -29,5 +29,6 @@ int id_map_add(id_map_t *head, const char *from, const char *to);
 int id_map_delete(id_map_t *head, const char *from);
 int id_map_clear(id_map_t *head);
 int id_map_print(id_map_t head);
+int id_map_add_from_file(id_map_t *head, const char *file);
 
 #endif
