@@ -23,6 +23,9 @@ struct config
 	/* run as daemon */
 	int  daemon;
 
+	/* republish shellies messages on different base */
+	int  republish;
+
 	/* where logs should be stored */
 	char log_file[PATH_MAX];
 
