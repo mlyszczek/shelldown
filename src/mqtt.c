@@ -57,7 +57,8 @@ static void mqtt_on_connect
 	int                result     /* connection result */
 )
 {
-	const char *reasons[5] =
+	int                mid;       /* mqtt sub message id */
+	const char        *reasons[5] =
 	{
 		"connected with success",
 		"refused: invalid protocol version",
@@ -80,13 +81,23 @@ static void mqtt_on_connect
 	el_print(ELN, "connected to the broker");
 	el_print(ELN, "subscribing to shelly topics");
 
+#if 0
+	/* all v1 shelly devices lies in shellies/# mqtt namespace */
+	if (config->republish)
+		if (mosquitto_subscribe(mqtt, &mid, "shellies/#", 0))
+			el_print(ELN, "sent subscribe request for shellies/#, mid: %d", mid);
+#endif
+
 	id_map_foreach(topic_map)
 	{
 		char  topic[ID_MAP_MAX];
-		int   mid;
 		/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-		sprintf(topic, "%s/events/rpc", node->src);
+		if (strncmp(node->src, "shellyplug-s", 12) == cmp_equal)
+			sprintf(topic, "shellies/%s/#", node->src);
+		else
+			sprintf(topic, "%s/events/rpc", node->src);
+
 		if (mosquitto_subscribe(mqtt, &mid, topic, 0))
 			continue_perror(ELE, "mosquitto_subscribe(%s)", topic);
 		el_print(ELN, "sent subscribe request for %s, mid: %d", topic, mid);
@@ -139,6 +150,63 @@ static void mqtt_on_disconnect
 		el_print(ELC, "calling mosquitto_reconnect()"); /* STOP. GIVING. UP! */
 }
 
+
+/* ==========================================================================
+    Called by mqtt_on_message when shelly v1 message format is received
+   ========================================================================== */
+static void mqtt_on_message_v1
+(
+	struct mosquitto                *mqtt,     /* mqtt session */
+	void                            *userdata, /* not used */
+	const struct mosquitto_message  *msg       /* received message */
+)
+{
+	(void)userdata;
+	char                            *t;        /* ptr to somewhere in rtopic */
+	const char                      *dst;      /* where to republish message */
+	char                            *shelly_id;/* shelly id from topic */
+	int                              ret;      /* return from mosquitto_pub */
+	char                             rtopic[TOPIC_MAX]; /* received topic */
+	char                             topic[TOPIC_MAX]; /* topic to publish msg*/
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
+	rtopic[sizeof(rtopic) - 1] = '\0';
+	strncpy(rtopic, msg->topic, sizeof(rtopic));
+	if (rtopic[sizeof(rtopic) - 1] != '\0')
+		return_noval_print(ELW, "received topic too long: %s", msg->topic);
+
+	/* v1 topics will be in format similar to this
+	 *   shellies/shellyplug-s-6F3458/relay/0 */
+
+	/* skip shellies/ part of topic (9 bytes) */
+	t = shelly_id = rtopic + 9;
+	/* find next / in received topic */
+	while (*t != '/') t++;
+	/* and replace it with '/0', shelly_id will not contain
+	 * valid c-string with shelly-id */
+	*t = '\0';
+	/* make t to point to device specific topic part,
+	 * in our exampel case it will be "relay/0" */
+	t++;
+
+	dst = id_map_find(topic_map, shelly_id);
+	if (dst == NULL)
+	{
+		el_print(ELW, "%s not found in map, how?!", dst);
+		return;
+	}
+
+	snprintf(topic, sizeof(topic), "%s%s/%s", config->topic_base, dst, t);
+	el_print(ELD, "republish v1 %s -> %s", msg->topic, topic);
+	ret = mosquitto_publish(g_mqtt, NULL, topic,
+		msg->payloadlen, msg->payload, msg->qos, msg->retain);
+	if (ret)
+		el_print(ELW, "error republishing %s to %s, reason: %s",
+				msg->topic, topic, mosquitto_strerror(ret));
+}
+
+
 /* ==========================================================================
     Called by mosquitto when we receive message. We send here proper command
     to proper module based on topic.
@@ -150,15 +218,23 @@ static void mqtt_on_message
 	const struct mosquitto_message  *msg       /* received message */
 )
 {
-	const char                      *dst;      /* whereto republish message */
+	const char                      *dst;      /* where to republish message */
 	char                            *src;      /* who sent us a message */
 	char                             rtopic[TOPIC_MAX]; /* received topic */
-	char                             topic[TOPIC_MAX]; /* topic to publish msg on */
+	char                             topic[TOPIC_MAX]; /* topic to publish msg*/
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-	unused(mqtt);
 	unused(userdata);
 
+	if (strncmp(msg->topic, "shellies/", 9) == cmp_equal)
+	{
+		mqtt_on_message_v1(mqtt, userdata, msg);
+		/* there is no translation for v1 messages, only
+		 * republishing with different topic */
+		return;
+	}
+
+	/* shelly v2 messages */
 
 	if (strlen(msg->payload) != (size_t)msg->payloadlen)
 		return_noval_print(ELW, "got invalid json message: %s on %s",
@@ -221,9 +297,11 @@ static void mqtt_on_message
 	}
 
 	publish_for_device(plus1pm);
-
-	el_print(ELW, "unknown device %s", src);
 #undef publish_for_device
+
+	/* if we get here, that means we received message for
+	 * unsupported device */
+	el_print(ELW, "unsupported shelly device: %s, please report a bug", src);
 }
 
 
@@ -407,7 +485,6 @@ void mqtt_pub_string
 	if (ret)
 		el_print(ELW, "error sending %s to %s, reason: %s", payload, t,
 				mosquitto_strerror(ret));
-
 }
 
 
