@@ -93,10 +93,10 @@ static void mqtt_on_connect
 		char  topic[ID_MAP_MAX];
 		/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-		if (strncmp(node->src, "shellyplug-s", 12) == cmp_equal)
-			sprintf(topic, "shellies/%s/#", node->src);
-		else
+		if (strncmp(node->src, "shellyplus1pm", 13) == cmp_equal)
 			sprintf(topic, "%s/events/rpc", node->src);
+		else
+			sprintf(topic, "shellies/%s/#", node->src);
 
 		if (mosquitto_subscribe(mqtt, &mid, topic, 0))
 			continue_perror(ELE, "mosquitto_subscribe(%s)", topic);
