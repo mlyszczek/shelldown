@@ -83,7 +83,7 @@
 	}
 
 /* list of short options for getopt_long */
-static const char *shortopts = ":hvdm:Dh:p:i:t:";
+static const char *shortopts = ":hvdm:Dh:p:i:t:l:";
 
 
 /* array of long options for getop_long. This is defined as macro so it
