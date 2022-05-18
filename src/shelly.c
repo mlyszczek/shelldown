@@ -13,6 +13,8 @@
 #include <embedlog.h>
 #include <string.h>
 
+#include "macros.h"
+
 /* ==========================================================================
               / __/__  __ ____   _____ / /_ (_)____   ____   _____
              / /_ / / / // __ \ / ___// __// // __ \ / __ \ / ___/
@@ -29,9 +31,9 @@ int shelly_id_to_ver
 	const char  *id  /* shelly id (like shellyplus1pm-7c87ce65bd9c) */
 )
 {
-#define RET_API(s, v) if (strncmp(id, s, strlen(s))) return v
+#define RET_API(s, v) if (strncmp(id, s, strlen(s)) == cmp_equal) return v
 
-	RET_API("shellyplug-s", 1);
+	RET_API("shellyplug", 1);
 
 	RET_API("shellyplus1pm", 2);
 

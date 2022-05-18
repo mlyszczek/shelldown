@@ -119,8 +119,6 @@ static void mqtt_on_connect
 			if (strncmp(node->src, "shellyplug", 10) == cmp_equal)
 				subscribe("%s%s/relay/0/command", tbase, node->dst);
 
-
-
 			continue;
 		}
 
