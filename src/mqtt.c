@@ -116,6 +116,10 @@ static void mqtt_on_connect
 				subscribe("%s%s/roller/0/command", tbase, node->dst);
 				subscribe("%s%s/roller/0/command/pos", tbase, node->dst);
 			}
+			if (strncmp(node->src, "shellyplug", 10) == cmp_equal)
+				subscribe("%s%s/relay/0/command", tbase, node->dst);
+
+
 
 			continue;
 		}
