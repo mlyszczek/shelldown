@@ -34,6 +34,8 @@ int shelly_id_to_ver
 #define RET_API(s, v) if (strncmp(id, s, strlen(s)) == cmp_equal) return v
 
 	RET_API("shellyplug", 1);
+	RET_API("shellyswitch25", 1);
+	RET_API("shellyem3", 1);
 
 	RET_API("shellyplus1pm", 2);
 
