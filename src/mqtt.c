@@ -58,6 +58,7 @@ static void mqtt_on_connect
 )
 {
 	int                mid;       /* mqtt sub message id */
+	const char        *tbase;     /* base topic from config */
 	const char        *reasons[5] =
 	{
 		"connected with success",
@@ -71,6 +72,7 @@ static void mqtt_on_connect
 
 	(void)userdata;
 	result = result > 4 ? 4 : result;
+	tbase = config->topic_base;
 
 	if (result != 0)
 	{
@@ -88,19 +90,41 @@ static void mqtt_on_connect
 			el_print(ELN, "sent subscribe request for shellies/#, mid: %d", mid);
 #endif
 
+
 	id_map_foreach(topic_map)
 	{
 		char  topic[ID_MAP_MAX];
+		int   api_ver;
 		/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-		if (strncmp(node->src, "shellyplus1pm", 13) == cmp_equal)
-			sprintf(topic, "%s/events/rpc", node->src);
-		else
-			sprintf(topic, "shellies/%s/#", node->src);
+		/* simple macro, to subscribe to printf-like formatted topic,
+		 * will also print error on failure */
+#define subscribe(...) { \
+			sprintf(topic, __VA_ARGS__); \
+			if (mosquitto_subscribe(mqtt, &mid, topic, 0)) \
+				continue_perror(ELE, "mosquitto_subscribe(%s)", topic); \
+			el_print(ELN, "sent subscribe request for %s, mid: %d", topic, mid);}
 
-		if (mosquitto_subscribe(mqtt, &mid, topic, 0))
-			continue_perror(ELE, "mosquitto_subscribe(%s)", topic);
-		el_print(ELN, "sent subscribe request for %s, mid: %d", topic, mid);
+		api_ver = shelly_id_to_ver(node->src);
+		if (api_ver == -1) continue;
+
+		if (api_ver ==  1)
+		{
+			subscribe("shellies/%s/#", node->src);
+			if (strncmp(node->src, "shellyswitch25", 14) == cmp_equal)
+			{
+				subscribe("%s%s/roller/0/command", tbase, node->dst);
+				subscribe("%s%s/roller/0/command/pos", tbase, node->dst);
+			}
+
+			continue;
+		}
+
+		if (api_ver ==  2)
+		{
+			subscribe("%s/events/rpc", node->src);
+		}
+#undef subscribe
 	}
 }
 
@@ -152,6 +176,71 @@ static void mqtt_on_disconnect
 
 
 /* ==========================================================================
+    Called by mqtt_on_message when user calls /command
+   ========================================================================== */
+static void mqtt_on_message_cmd
+(
+	struct mosquitto                *mqtt,     /* mqtt session */
+	void                            *userdata, /* not used */
+	const struct mosquitto_message  *msg       /* received message */
+)
+{
+	(void)userdata;
+	char                            *t;        /* ptr to somewhere in rtopic */
+	const char                      *dst;      /* where to republish message */
+	const char                      *src;      /* command topic */
+	char                            *shelly_id;/* shelly id from topic */
+	int                              ret;      /* return from mosquitto_pub */
+	char                             rtopic[TOPIC_MAX]; /* received topic */
+	char                             topic[TOPIC_MAX]; /* topic to publish msg*/
+	id_map_t                         node;     /* topic id node */
+	int                              api_ver;  /* shelly api version */
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+	rtopic[sizeof(rtopic) - 1] = '\0';
+	strncpy(rtopic, msg->topic, sizeof(rtopic));
+	if (rtopic[sizeof(rtopic) - 1] != '\0')
+		return_noval_print(ELW, "received topic too long: %s", msg->topic);
+
+	src = rtopic;
+	/* skip topic base part */
+	src += config->topic_base_len;
+
+	/* user sends commands to republished topic, so for example
+	 * /iot/office/blinds/roller/0/command so we have to find
+	 * real shelly id in topic map. */
+	el_print(ELD, "%s", src);
+	for (node = topic_map; node != NULL; node = node->next)
+		if (strncmp(node->dst, src, strlen(node->dst)) == cmp_equal)
+			break;
+
+	if (node == NULL)
+		return_noval_print(ELW, "unknown command received: %s", msg->topic);
+
+	api_ver = shelly_id_to_ver(node->src);
+	if (api_ver == -1)
+		return_noval_print(ELW, "unkown api version");
+
+	if (api_ver == 1)
+	{
+		/* for api version 1, we just have to simply change topic
+		 * and republish, src already points past base topic.
+		 * move it by length of user's shelly id to get shelly
+		 * specific part of topic, +1 to skip '/' */
+		src += strlen(node->dst) + 1;
+		/* construct new topic */
+		snprintf(topic, sizeof(topic), "shellies/%s/%s", node->src, src);
+		/* and republish msg */
+		ret = mosquitto_publish(mqtt, NULL, topic,
+			msg->payloadlen, msg->payload, msg->qos, msg->retain);
+		if (ret)
+			el_print(ELW, "error republishing %s to %s, reason: %s",
+					msg->topic, topic, mosquitto_strerror(ret));
+	}
+}
+
+
+/* ==========================================================================
     Called by mqtt_on_message when shelly v1 message format is received
    ========================================================================== */
 static void mqtt_on_message_v1
@@ -199,7 +288,7 @@ static void mqtt_on_message_v1
 
 	snprintf(topic, sizeof(topic), "%s%s/%s", config->topic_base, dst, t);
 	el_print(ELD, "republish v1 %s -> %s", msg->topic, topic);
-	ret = mosquitto_publish(g_mqtt, NULL, topic,
+	ret = mosquitto_publish(mqtt, NULL, topic,
 		msg->payloadlen, msg->payload, msg->qos, msg->retain);
 	if (ret)
 		el_print(ELW, "error republishing %s to %s, reason: %s",
@@ -208,10 +297,9 @@ static void mqtt_on_message_v1
 
 
 /* ==========================================================================
-    Called by mosquitto when we receive message. We send here proper command
-    to proper module based on topic.
+    Called by mqtt_on_message when shelly v2 message format is received
    ========================================================================== */
-static void mqtt_on_message
+static void mqtt_on_message_v2
 (
 	struct mosquitto                *mqtt,     /* mqtt session */
 	void                            *userdata, /* not used */
@@ -224,17 +312,6 @@ static void mqtt_on_message
 	char                             topic[TOPIC_MAX]; /* topic to publish msg*/
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-	unused(userdata);
-
-	if (strncmp(msg->topic, "shellies/", 9) == cmp_equal)
-	{
-		mqtt_on_message_v1(mqtt, userdata, msg);
-		/* there is no translation for v1 messages, only
-		 * republishing with different topic */
-		return;
-	}
-
-	/* shelly v2 messages */
 
 	if (strlen(msg->payload) != (size_t)msg->payloadlen)
 		return_noval_print(ELW, "got invalid json message: %s on %s",
@@ -262,7 +339,7 @@ static void mqtt_on_message
 	 *   shellyplus1pm-7c87ce65bd9c/events/rpc
 	 * and payload (truncated)
 	 *   switch:0":{"id":0,"apower":0,"output":false,"source":"WS_in","voltage":0}
-	 * assuming that shell id is mapped to heat/office
+	 * assuming that shelly id is mapped to heat/office
 	 * we will be creating multiple message with topics and payload
 	 * shellies/heat/office/relay/0/power 0
 	 * shellies/heat/office/relay/0/voltage 0
@@ -302,6 +379,52 @@ static void mqtt_on_message
 	/* if we get here, that means we received message for
 	 * unsupported device */
 	el_print(ELW, "unsupported shelly device: %s, please report a bug", src);
+}
+
+/* ==========================================================================
+    Called by mosquitto when we receive message. We send here proper command
+    to proper module based on topic.
+   ========================================================================== */
+static void mqtt_on_message
+(
+	struct mosquitto                *mqtt,     /* mqtt session */
+	void                            *userdata, /* not used */
+	const struct mosquitto_message  *msg       /* received message */
+)
+{
+	const char                      *dst;      /* where to republish message */
+	char                            *src;      /* who sent us a message */
+	char                             rtopic[TOPIC_MAX]; /* received topic */
+	char                             topic[TOPIC_MAX]; /* topic to publish msg*/
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+	unused(userdata);
+
+	if (strstr(msg->topic, "/command"))
+	{
+		if (strncmp(msg->topic, "shellies/", 9) == cmp_equal)
+			/* either user directly controlls shelly (without us)
+			 * or it's message sent by us, either way ignore message
+			 * to avoid some infinite loops and broken network */
+			return;
+
+		/* command can be trigger only by the user,
+		 * and never by shelly */
+		mqtt_on_message_cmd(mqtt, userdata, msg);
+		return;
+	}
+
+
+	if (strncmp(msg->topic, "shellies/", 9) == cmp_equal)
+	{
+		mqtt_on_message_v1(mqtt, userdata, msg);
+		/* there is no translation for v1 messages, only
+		 * republishing with different topic */
+		return;
+	}
+
+	/* shelly v2 messages */
+	mqtt_on_message_v2(mqtt, userdata, msg);
 }
 
 

@@ -11,6 +11,7 @@
 	if (v == NULL) \
 		goto_print(error, ELW, "["m"] no "k" in json: %s", payload)
 
+int shelly_id_to_ver(const char *id);
 
 #define declare_shelly(s) \
 	void shelly_##s##_pub(const char *topic, const char *payload, int qos, int retain); \

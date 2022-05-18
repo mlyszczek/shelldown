@@ -1,4 +1,4 @@
-shelldown_source = config.c id-map.c main.c mqtt.c shelly_plus1pm.c
+shelldown_source = config.c id-map.c main.c mqtt.c shelly_plus1pm.c shelly.c
 shelldown_headers = config.h macros.h id-map.h mqtt.h shelly.h
 
 bin_cflags = $(COVERAGE_CFLAGS) -I$(top_srcdir) -I$(top_srcdir)/inc

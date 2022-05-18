@@ -31,6 +31,7 @@ struct config
 
 	/* base topic added to all messages */
 	char topic_base[128];
+	size_t topic_base_len;
 
 	/* broker ip address */
 	char  mqtt_host[15 + 1];

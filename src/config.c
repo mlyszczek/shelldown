@@ -299,6 +299,8 @@ int config_init
 	optind = 1;
 	ret = config_parse_args(argc, argv);
 
+	g_config.topic_base_len = strlen(g_config.topic_base);
+
 	/* all good, initialize global config pointer
 	 * with config object */
 	config = (const struct config *)&g_config;
