@@ -125,6 +125,8 @@ static void mqtt_on_connect
 		if (api_ver ==  2)
 		{
 			subscribe("%s/events/rpc", node->src);
+			if (strncmp(node->src, "shellyplus1pm", 13) == cmp_equal)
+				subscribe("%s%s/relay/0/command", tbase, node->dst);
 		}
 #undef subscribe
 	}
@@ -189,12 +191,14 @@ static void mqtt_on_message_cmd
 {
 	(void)userdata;
 	char                            *t;        /* ptr to somewhere in rtopic */
-	const char                      *dst;      /* where to republish message */
-	const char                      *src;      /* command topic */
+	char                            *src;      /* command topic */
+	char                            *cmd;      /* command to execute */
+	char                            *id;       /* id of shelly subdev (number)*/
 	char                            *shelly_id;/* shelly id from topic */
 	int                              ret;      /* return from mosquitto_pub */
 	char                             rtopic[TOPIC_MAX]; /* received topic */
 	char                             topic[TOPIC_MAX]; /* topic to publish msg*/
+	char                             cmd_json[1024]; /* json to send as cmd */
 	id_map_t                         node;     /* topic id node */
 	int                              api_ver;  /* shelly api version */
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
@@ -223,13 +227,14 @@ static void mqtt_on_message_cmd
 	if (api_ver == -1)
 		return_noval_print(ELW, "unkown api version");
 
+	/* src already points past base topic, move it by length of
+	 * user's shelly id to get shelly specific part of topic, */
+	src += strlen(node->dst) + 1;
+
 	if (api_ver == 1)
 	{
-		/* for api version 1, we just have to simply change topic
-		 * and republish, src already points past base topic.
-		 * move it by length of user's shelly id to get shelly
-		 * specific part of topic, +1 to skip '/' */
-		src += strlen(node->dst) + 1;
+		/* for api version 1, we just have to
+		 * simply change topic and republish */
 		/* construct new topic */
 		snprintf(topic, sizeof(topic), "shellies/%s/%s", node->src, src);
 		/* and republish msg */
@@ -238,7 +243,50 @@ static void mqtt_on_message_cmd
 		if (ret)
 			el_print(ELW, "error republishing %s to %s, reason: %s",
 					msg->topic, topic, mosquitto_strerror(ret));
+		return;
 	}
+
+	/* api verion 2 */
+	/* src is pointing past base topic and id, so first part
+	 * now is command, like relay or roller */
+	cmd = src;
+	while (*src != '/') src++;
+	/* replace '/' with '\0', so cmd contain valid c-string
+	 * that contains command like, rolle, relay or light etc. */
+	*src = '\0';
+	src++;
+
+	/* get id of subdevice, like shelly2.5 in normal mode will
+	 * have 2 relays, so id will be either 0 or 1, for shelly1
+	 * id can only be 0 */
+	id = src;
+	while (*src != '/') src++;
+	*src = '\0';
+	src++;
+
+	if (strcmp(cmd, "relay") == cmp_equal)
+	{
+		/* relay in v1 is a switch component in v2
+		 * https://shelly-api-docs.shelly.cloud/gen2/Components/FunctionalComponents/Switch */
+
+		/* construct json message, it's simple message so no need to
+		 * use jansson lib for it, sprintf will do just fine */
+		sprintf(cmd_json,
+			"{\"id\":1, \"src\": \"%s\", \"method\":\"Switch.Set\", "
+			"\"params\":{\"id\":%s, \"on\":%s}}", node->dst, id,
+			strcmp(msg->payload, "on") == cmp_equal ? "true" : "false");
+	}
+
+	/* construct new topic */
+	snprintf(topic, sizeof(topic), "%s/rpc", node->src);
+
+	el_print(ELD, "v2: cmd publish: %s:%s", topic, cmd_json);
+	ret = mosquitto_publish(mqtt, NULL, topic,
+		strlen(cmd_json), cmd_json, msg->qos, msg->retain);
+	if (ret)
+		el_print(ELW, "error republishing %s to %s, reason: %s",
+				msg->topic, topic, mosquitto_strerror(ret));
+
 }
 
 
