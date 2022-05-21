@@ -198,10 +198,17 @@ static void mqtt_on_message_cmd
 	int                              ret;      /* return from mosquitto_pub */
 	char                             rtopic[TOPIC_MAX]; /* received topic */
 	char                             topic[TOPIC_MAX]; /* topic to publish msg*/
-	char                             cmd_json[1024]; /* json to send as cmd */
+	json_t                          *json_cmd; /* json to send as cmd */
+	json_t                          *json_param;/* params part of cmd */
+	char                            *json_cmds;/* json cmd as string */
+	char                            *payload;  /* received paylod as char */
 	id_map_t                         node;     /* topic id node */
 	int                              api_ver;  /* shelly api version */
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+	json_cmd = NULL;
+	json_cmds = NULL;
+	payload = msg->payload;
 
 	rtopic[sizeof(rtopic) - 1] = '\0';
 	strncpy(rtopic, msg->topic, sizeof(rtopic));
@@ -264,29 +271,40 @@ static void mqtt_on_message_cmd
 	*src = '\0';
 	src++;
 
-	if (strcmp(cmd, "relay") == cmp_equal)
-	{
-		/* relay in v1 is a switch component in v2
-		 * https://shelly-api-docs.shelly.cloud/gen2/Components/FunctionalComponents/Switch */
+	/* prepare common part of json */
+	json_cmd = json_object();
+	json_param = json_object();
+	json_object_set(json_cmd, "id", json_integer(1));
+	json_object_set(json_cmd, "src", json_string(node->dst));
+	json_object_set(json_cmd, "params", json_param);
+	json_object_set(json_param, "id", json_integer(atoi(id)));
 
-		/* construct json message, it's simple message so no need to
-		 * use jansson lib for it, sprintf will do just fine */
-		sprintf(cmd_json,
-			"{\"id\":1, \"src\": \"%s\", \"method\":\"Switch.Set\", "
-			"\"params\":{\"id\":%s, \"on\":%s}}", node->dst, id,
-			strcmp(msg->payload, "on") == cmp_equal ? "true" : "false");
-	}
+
+	if (strcmp(cmd, "relay") == cmp_equal)
+		if (payload[0] == 't')
+			json_object_set(json_cmd, "method", json_string("Switch.Toggle"));
+		else
+		{
+			/* relay in v1 is a switch component in v2
+			 * https://shelly-api-docs.shelly.cloud/gen2/Components/FunctionalComponents/Switch */
+			json_object_set(json_cmd, "method", json_string("Switch.Set"));
+			/* little shortcut "on"[1] == 'n' */
+			json_object_set(json_param, "on", json_boolean(payload[1] == 'n'));
+		}
 
 	/* construct new topic */
 	snprintf(topic, sizeof(topic), "%s/rpc", node->src);
+	json_cmds = json_dumps(json_cmd, JSON_COMPACT);
 
-	el_print(ELD, "v2: cmd publish: %s:%s", topic, cmd_json);
+	el_print(ELD, "v2: cmd publish: %s:%s", topic, json_cmds);
 	ret = mosquitto_publish(mqtt, NULL, topic,
-		strlen(cmd_json), cmd_json, msg->qos, msg->retain);
+		strlen(json_cmds), json_cmds, msg->qos, msg->retain);
 	if (ret)
-		el_print(ELW, "error republishing %s to %s, reason: %s",
-				msg->topic, topic, mosquitto_strerror(ret));
+		el_print(ELW, "v2: error publishing %s to %s, reason: %s",
+				json_cmds, msg->topic, topic, mosquitto_strerror(ret));
 
+	free(json_cmds);
+	json_decref(json_cmd);
 }
 
 
