@@ -190,11 +190,9 @@ static void mqtt_on_message_cmd
 )
 {
 	(void)userdata;
-	char                            *t;        /* ptr to somewhere in rtopic */
 	char                            *src;      /* command topic */
 	char                            *cmd;      /* command to execute */
 	char                            *id;       /* id of shelly subdev (number)*/
-	char                            *shelly_id;/* shelly id from topic */
 	int                              ret;      /* return from mosquitto_pub */
 	char                             rtopic[TOPIC_MAX]; /* received topic */
 	char                             topic[TOPIC_MAX]; /* topic to publish msg*/
@@ -281,6 +279,7 @@ static void mqtt_on_message_cmd
 
 
 	if (strcmp(cmd, "relay") == cmp_equal)
+	{
 		if (payload[0] == 't')
 			json_object_set(json_cmd, "method", json_string("Switch.Toggle"));
 		else
@@ -291,6 +290,7 @@ static void mqtt_on_message_cmd
 			/* little shortcut "on"[1] == 'n' */
 			json_object_set(json_param, "on", json_boolean(payload[1] == 'n'));
 		}
+	}
 
 	/* construct new topic */
 	snprintf(topic, sizeof(topic), "%s/rpc", node->src);
@@ -380,6 +380,8 @@ static void mqtt_on_message_v2
 	char                             topic[TOPIC_MAX]; /* topic to publish msg*/
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
+	unused(mqtt);
+	unused(userdata);
 
 	if (strlen(msg->payload) != (size_t)msg->payloadlen)
 		return_noval_print(ELW, "got invalid json message: %s on %s",
@@ -460,14 +462,6 @@ static void mqtt_on_message
 	const struct mosquitto_message  *msg       /* received message */
 )
 {
-	const char                      *dst;      /* where to republish message */
-	char                            *src;      /* who sent us a message */
-	char                             rtopic[TOPIC_MAX]; /* received topic */
-	char                             topic[TOPIC_MAX]; /* topic to publish msg*/
-	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-	unused(userdata);
-
 	if (strstr(msg->topic, "/command"))
 	{
 		if (strncmp(msg->topic, "shellies/", 9) == cmp_equal)
