@@ -123,7 +123,7 @@ int main
 		el_option(EL_FROTATE_NUMBER, 0);
 		el_option(EL_FROTATE_SIZE, -1);
 		el_option(EL_FSYNC_EVERY, 65536);
-		el_option(EL_FSYNC_LEVEL, EL_WARN);
+		el_option(EL_FSYNC_LEVEL, EL_INFO);
 		el_option(EL_TS, EL_TS_LONG);
 		el_option(EL_TS_TM, EL_TS_TM_REALTIME);
 		el_option(EL_TS_FRACT, EL_TS_FRACT_OFF);
