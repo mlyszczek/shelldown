@@ -83,7 +83,7 @@
 	}
 
 /* list of short options for getopt_long */
-static const char *shortopts = ":hvdm:Dh:p:i:t:l:";
+static const char *shortopts = ":hvdm:Dh:p:i:t:l:r";
 
 
 /* array of long options for getop_long. This is defined as macro so it
@@ -103,6 +103,7 @@ static const char *shortopts = ":hvdm:Dh:p:i:t:l:";
 		{"topic-base",  required_argument, NULL, 't'}, \
 		{"mqtt-host",   required_argument, NULL, 'm'}, \
 		{"mqtt-port",   required_argument, NULL, 'p'}, \
+		{"mqtt-retain", no_argument,       NULL, 'r'}, \
  \
 		{NULL, 0, NULL, 0} \
 	}
@@ -149,6 +150,7 @@ static int config_print_help
 "\t-t, --topic-base=<topic>  base topic for all messages (default: shellies/)\n"
 "\t-m, --mqtt-host=<ip>      broker ip address\n"
 "\t-p, --mqtt-port=<port>    broker port\n"
+"\t-r, --mqtt-retain         send messages with retain flag\n"
 
 , name);
 
@@ -222,6 +224,7 @@ static int config_parse_args
 		case 'v': config_print_version(); return -3;
 		case 'd': g_config.debug = 1; break;
 		case 'D': g_config.daemon = 1; break;
+		case 'r': g_config.mqtt_retain= 1; break;
 		case 'l': PARSE_STR(log_file, optarg); break;
 		case 'i': PARSE_STR(id_map_file, optarg); break;
 		case 't': PARSE_STR(topic_base, optarg); break;
@@ -288,6 +291,7 @@ int config_init
 	/* set config with default, well known values */
 	g_config.debug = 0;
 	g_config.daemon = 0;
+	g_config.mqtt_retain = 0;
 	strcpy(g_config.topic_base, "shellies/");
 	strcpy(g_config.log_file, "/var/log/shelldown.log");
 	strcpy(g_config.id_map_file, "/etc/shelldown-map");
@@ -341,6 +345,7 @@ void config_dump
 	CONFIG_PRINT_FIELD(id_map_file, "%s");
 	CONFIG_PRINT_FIELD(mqtt_host, "%s");
 	CONFIG_PRINT_FIELD(mqtt_port, "%i");
+	CONFIG_PRINT_FIELD(mqtt_retain, "%i");
 
 
 #undef CONFIG_PRINT_FIELD

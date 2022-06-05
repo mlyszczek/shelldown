@@ -244,7 +244,7 @@ static void mqtt_on_message_cmd
 		snprintf(topic, sizeof(topic), "shellies/%s/%s", node->src, src);
 		/* and republish msg */
 		ret = mosquitto_publish(mqtt, NULL, topic,
-			msg->payloadlen, msg->payload, msg->qos, msg->retain);
+			msg->payloadlen, msg->payload, msg->qos, config->mqtt_retain);
 		if (ret)
 			el_print(ELW, "error republishing %s to %s, reason: %s",
 					msg->topic, topic, mosquitto_strerror(ret));
@@ -298,7 +298,7 @@ static void mqtt_on_message_cmd
 
 	el_print(ELD, "v2: cmd publish: %s:%s", topic, json_cmds);
 	ret = mosquitto_publish(mqtt, NULL, topic,
-		strlen(json_cmds), json_cmds, msg->qos, msg->retain);
+		strlen(json_cmds), json_cmds, msg->qos, config->mqtt_retain);
 	if (ret)
 		el_print(ELW, "v2: error publishing %s to %s, reason: %s",
 				json_cmds, msg->topic, topic, mosquitto_strerror(ret));
@@ -357,7 +357,7 @@ static void mqtt_on_message_v1
 	snprintf(topic, sizeof(topic), "%s%s/%s", config->topic_base, dst, t);
 	el_print(ELD, "republish v1 %s -> %s", msg->topic, topic);
 	ret = mosquitto_publish(mqtt, NULL, topic,
-		msg->payloadlen, msg->payload, msg->qos, msg->retain);
+		msg->payloadlen, msg->payload, msg->qos, config->mqtt_retain);
 	if (ret)
 		el_print(ELW, "error republishing %s to %s, reason: %s",
 				msg->topic, topic, mosquitto_strerror(ret));
@@ -628,6 +628,7 @@ void mqtt_pub_bool
 	char         payload[4];   /* on or off */
 	char         t[TOPIC_MAX]; /* final topic to send message to */
 	int          ret;          /* ret code from mosquitto_publish */
+	unused(retain);
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
@@ -637,7 +638,7 @@ void mqtt_pub_bool
 	strcpy(payload, val ? "on" : "off");
 	el_print(ELD, "mqtt-pub-bool: %s: %s", t, payload);
 	ret = mosquitto_publish(g_mqtt, NULL, t,
-			strlen(payload)+1, payload, qos, retain);
+			strlen(payload)+1, payload, qos, config->mqtt_retain);
 	if (ret)
 		el_print(ELW, "error sending %s to %s, reason: %s", payload, t,
 				mosquitto_strerror(ret));
@@ -658,6 +659,7 @@ void mqtt_pub_string
 {
 	char         t[TOPIC_MAX]; /* final topic to send message to */
 	int          ret;          /* ret code from mosquitto_publish */
+	unused(retain);
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
@@ -666,7 +668,7 @@ void mqtt_pub_string
 	strcat(t, topic);
 	el_print(ELD, "mqtt-pub: %s: %s", t, payload);
 	ret = mosquitto_publish(g_mqtt, NULL, t,
-			strlen(payload)+1, payload, qos, retain);
+			strlen(payload)+1, payload, qos, config->mqtt_retain);
 	if (ret)
 		el_print(ELW, "error sending %s to %s, reason: %s", payload, t,
 				mosquitto_strerror(ret));
@@ -689,6 +691,7 @@ void mqtt_pub_number
 	char         payload[128]; /* data to send over mqtt */
 	char         t[TOPIC_MAX]; /* final topic to send message to */
 	int          ret;          /* ret code from mosquitto_publish */
+	unused(retain);
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
@@ -698,7 +701,7 @@ void mqtt_pub_number
 	snprintf(payload, sizeof(payload), "%.*f", precision, num);
 	el_print(ELD, "mqtt-pub: %s: %s", t, payload);
 	ret = mosquitto_publish(g_mqtt, NULL, t,
-			strlen(payload)+1, payload, qos, retain);
+			strlen(payload)+1, payload, qos, config->mqtt_retain);
 	if (ret)
 		el_print(ELW, "error sending %s to %s, reason: %s", payload, t,
 				mosquitto_strerror(ret));

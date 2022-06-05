@@ -39,6 +39,8 @@ struct config
 	/* broker port */
 	int  mqtt_port;
 
+	/* send messages with retain flag */
+	int  mqtt_retain;
 };
 
 extern const struct config  *config;
