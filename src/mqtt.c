@@ -638,7 +638,7 @@ void mqtt_pub_bool
 	strcpy(payload, val ? "on" : "off");
 	el_print(ELD, "mqtt-pub-bool: %s: %s", t, payload);
 	ret = mosquitto_publish(g_mqtt, NULL, t,
-			strlen(payload)+1, payload, qos, config->mqtt_retain);
+			strlen(payload), payload, qos, config->mqtt_retain);
 	if (ret)
 		el_print(ELW, "error sending %s to %s, reason: %s", payload, t,
 				mosquitto_strerror(ret));
@@ -668,7 +668,7 @@ void mqtt_pub_string
 	strcat(t, topic);
 	el_print(ELD, "mqtt-pub: %s: %s", t, payload);
 	ret = mosquitto_publish(g_mqtt, NULL, t,
-			strlen(payload)+1, payload, qos, config->mqtt_retain);
+			strlen(payload), payload, qos, config->mqtt_retain);
 	if (ret)
 		el_print(ELW, "error sending %s to %s, reason: %s", payload, t,
 				mosquitto_strerror(ret));
@@ -701,7 +701,7 @@ void mqtt_pub_number
 	snprintf(payload, sizeof(payload), "%.*f", precision, num);
 	el_print(ELD, "mqtt-pub: %s: %s", t, payload);
 	ret = mosquitto_publish(g_mqtt, NULL, t,
-			strlen(payload)+1, payload, qos, config->mqtt_retain);
+			strlen(payload), payload, qos, config->mqtt_retain);
 	if (ret)
 		el_print(ELW, "error sending %s to %s, reason: %s", payload, t,
 				mosquitto_strerror(ret));
