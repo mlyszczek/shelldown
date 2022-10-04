@@ -96,7 +96,8 @@ void shelly_plus1pm_pub
 
 		else if ((strcmp(key, "id") & strcmp(key, "source") &
 				strcmp(key, "timer_started_at") &
-				strcmp(key, "timer_duration")) == cmp_equal)
+				strcmp(key, "timer_duration") &
+				strcmp(key, "aenergy")) == cmp_equal)
 			continue; /* ignore unusable fields */
 
 		else
