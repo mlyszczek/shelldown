@@ -347,7 +347,7 @@ static void mqtt_on_message_v1
 	 * in our exampel case it will be "relay/0" */
 	t++;
 
-	dst = id_map_find(topic_map, shelly_id);
+	dst = id_map_find_dst(topic_map, shelly_id);
 	if (dst == NULL)
 	{
 		el_print(ELW, "%s not found in map, how?!", dst);
@@ -425,7 +425,7 @@ static void mqtt_on_message_v2
 	 *   shellies/heat/office
 	 *     -- or --
 	 *   shellies/shellyplus1pm-7c87ce65bd9c (if dst was not found in map) */
-	dst = id_map_find(topic_map, src);
+	dst = id_map_find_dst(topic_map, src);
 	sprintf(topic, "%s%s/", config->topic_base, dst ? dst : src);
 
 
@@ -510,7 +510,7 @@ int mqtt_init
 	int          n;     /* number of conn failures */
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-	if (id_map_add_from_file(&topic_map, config->id_map_file))
+	if (id_map_add_dst_from_file(&topic_map, config->id_map_file))
 		return_print(-1, errno, ELF, "Failed to load id map");
 
 	id_map_print(topic_map);

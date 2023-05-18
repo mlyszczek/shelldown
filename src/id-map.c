@@ -42,41 +42,6 @@
                    / /_/ // /   / / | |/ // /_/ // /_ /  __/
                   / .___//_/   /_/  |___/ \__,_/ \__/ \___/
                  /_/
-   ==========================================================================
-    Finds a node that contains 'topic' string.
-
-    Returns pointer to found node or null.
-
-    If 'prev' is not null, function will also return previous node that
-    'next' field points to returned node. This is usefull when deleting
-    nodes and saves searching for previous node to rearange list after
-    delete. If function returns valid pointer, and prev is NULL, this
-    means first element from the list was returned.
-   ========================================================================== */
-static id_map_t id_map_find_node
-(
-	id_map_t         head,  /* head of the list to search */
-	const char      *src,   /* src shelly topic to look for */
-	id_map_t        *prev   /* previous node to returned node */
-)
-{
-	id_map_t         node;  /* current node */
-	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-
-	if (prev) *prev = NULL;
-	for (node = head; node != NULL; node = node->next)
-	{
-		if (strcmp(node->src, src) == 0)
-			return node; /* this is the node you are looking for */
-
-		if (prev) *prev = node;
-	}
-
-	/* node of that topic does not exist */
-	return NULL;
-}
-
 
 /* ==========================================================================
     Creates new node with copy of $src and $dst
@@ -86,7 +51,7 @@ static id_map_t id_map_find_node
     errno:
             ENOMEM      not enough memory for new node
    ========================================================================== */
-static id_map_t id_map_new_node
+static id_map_t id_map_new_dst_node
 (
 	const char      *src,  /* src topic to create new node with */
 	const char      *dst   /* dst topic to create new node with */
@@ -119,7 +84,28 @@ static id_map_t id_map_new_node
 	return node;
 }
 
+/* ==========================================================================
+    Basically same as id_map_new_dst_node(), but for state and not dst
+   ========================================================================== */
+static id_map_t id_map_new_state_node
+(
+	const char      *src   /* src topic to create new node with */
+)
+{
+	id_map_t        node;  /* pointer to new node */
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
+	node = malloc(sizeof(struct id_map) + strlen(src)+1);
+	if (node == NULL)
+		return NULL;
+
+	node->src = ((char *)node) + sizeof(struct id_map);
+
+	strcpy(node->src, src);
+	node->next = NULL;
+
+	return node;
+}
 /* ==========================================================================
                                         __     __ _
                          ____   __  __ / /_   / /(_)_____
@@ -139,6 +125,44 @@ int id_map_init
 	*head = NULL;
 	return 0;
 }
+
+
+/* ==========================================================================
+    Finds a node that contains 'topic' string.
+
+    Returns pointer to found node or null.
+
+    If 'prev' is not null, function will also return previous node that
+    'next' field points to returned node. This is usefull when deleting
+    nodes and saves searching for previous node to rearange list after
+    delete. If function returns valid pointer, and prev is NULL, this
+    means first element from the list was returned.
+   ========================================================================== */
+id_map_t id_map_find_node
+(
+	id_map_t         head,  /* head of the list to search */
+	const char      *src,   /* src shelly topic to look for */
+	id_map_t        *prev   /* previous node to returned node */
+)
+{
+	id_map_t         node;  /* current node */
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
+	if (prev) *prev = NULL;
+	for (node = head; node != NULL; node = node->next)
+	{
+		if (strcmp(node->src, src) == 0)
+			return node; /* this is the node you are looking for */
+
+		if (prev) *prev = node;
+	}
+
+	/* node of that topic does not exist */
+	return NULL;
+}
+
+
 
 /* ==========================================================================
     Adds new node with $src and $dst to list pointed by 'head'
@@ -160,7 +184,7 @@ int id_map_init
     If $head is NULL (meaning list is empty), function will create new list
     and add $src and $dst to $head
    ========================================================================== */
-int id_map_add
+int id_map_add_dst
 (
 	id_map_t    *head,  /* head of list where to add new node to */
 	const char  *src,   /* src topic */
@@ -183,7 +207,7 @@ int id_map_add
 	 *      +---+     +---+
 	 *      | 1 | --> | 2 |
 	 *      +---+     +---+ */
-	node = id_map_new_node(src, dst);
+	node = id_map_new_dst_node(src, dst);
 	if (node == NULL)
 		return -1;
 
@@ -220,6 +244,42 @@ int id_map_add
 	 *      +---+     +---+
 	 *      | 1 |     | 2 |
 	 *      +---+     +---+ */
+	(*head)->next = node;
+
+	return 0;
+}
+
+
+/* ==========================================================================
+    Check id_map_add_dst for comments
+   ========================================================================== */
+int id_map_add_state
+(
+	id_map_t    *head,  /* head of list where to add new node to */
+	const char  *src,   /* src topic */
+	int          state  /* state to hold for src */
+)
+{
+	id_map_t     node;  /* newly created node */
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
+	valid(head, EINVAL);
+	valid(src, EINVAL);
+
+	node = id_map_new_state_node(src);
+	if (node == NULL)
+		return -1;
+
+	node->state = state;
+
+	if (*head == NULL)
+	{
+		*head = node;
+		return 0;
+	}
+
+	node->next = (*head)->next;
 	(*head)->next = node;
 
 	return 0;
@@ -362,7 +422,7 @@ int id_map_print
     Reads $file and adds map values from it to $head. File can contain
     comments (#), and all whitespaces are ignored, so padding is allowed.
    ========================================================================== */
-int id_map_add_from_file
+int id_map_add_dst_from_file
 (
 	id_map_t    *head,            /* list to append map from file */
 	const char  *file             /* file to read map from */
@@ -448,8 +508,8 @@ int id_map_add_from_file
 		*linep++ = '\0';
 
 		/* finnaly, let's add read map to a database */
-		if (id_map_add(head, src, dst))
-			return_perror(ELF, "id_map_add(%s, %s)", src, dst);
+		if (id_map_add_dst(head, src, dst))
+			return_perror(ELF, "id_map_add_dst(%s, %s)", src, dst);
 
 		/* and that concludes parsing of this line,
 		 * move out to the next one */
@@ -466,7 +526,7 @@ int id_map_add_from_file
     until $src is removed from list or $head is cleared, as returned pointer
     is an address to memory allocated in head.
    ========================================================================== */
-const char *id_map_find
+const char *id_map_find_dst
 (
 	id_map_t     head,  /* list to search */
 	const char  *src    /* src topic to get matching dst for */
@@ -480,3 +540,4 @@ const char *id_map_find
 	if (node == NULL) return NULL;
 	return node->dst;
 }
+
