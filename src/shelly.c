@@ -36,6 +36,7 @@ int shelly_id_to_ver
 	RET_API("shellyplug", 1);
 	RET_API("shellyswitch25", 1);
 	RET_API("shellyem3", 1);
+	RET_API("shellyem", 1);
 
 	RET_API("shellyplus1pm", 2);
 	RET_API("shellyplusi4", 2);
