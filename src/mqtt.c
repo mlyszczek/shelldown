@@ -444,6 +444,7 @@ static void mqtt_on_message_v2
 	}
 
 	publish_for_device(plus1pm);
+	publish_for_device(plusi4);
 #undef publish_for_device
 
 	/* if we get here, that means we received message for

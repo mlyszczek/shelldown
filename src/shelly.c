@@ -38,6 +38,7 @@ int shelly_id_to_ver
 	RET_API("shellyem3", 1);
 
 	RET_API("shellyplus1pm", 2);
+	RET_API("shellyplusi4", 2);
 
 #undef RET_API
 	el_print(ELW, "unkown shelly id: %s, please, report this bug", id);
