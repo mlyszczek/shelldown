@@ -144,20 +144,8 @@ int main
 			el_option(EL_OUT, EL_OUT_FILE);
 			if (el_option(EL_FPATH, config->log_file) != 0)
 			{
-				if (errno == ENAMETOOLONG || errno == EINVAL)
-					/* in general embedlog will try to recover from
-					 * any error that it may stumble upon (like
-					 * directory does not yet exist - but will be
-					 * created later, or permission is broker, but
-					 * will be fixed later). That errors could be
-					 * recovered from with some external help so
-					 * there is no point disabling file logging.
-					 * Any errors, except for these two.  In this
-					 * case, disable logging to file as it is
-					 * pointless, so we disable logging to file
-					 * leaving other destinations intact. As last
-					 * resort, we will try to print to stderr. */
-					el_option(EL_OUT, EL_OUT_STDERR);
+				/* Can't open log file, log to stderr instead */
+				el_option(EL_OUT, EL_OUT_STDERR);
 
 				/* print warning to stderr so it's not missed by
 				 * integrator in case file output was the only
