@@ -204,3 +204,11 @@ $ ./configure
 $ make
 $ sudo make install
 ```
+
+Notes
+=====
+
+Even though I am using this for almost 2 years now, project is still in
+infant stage and does not have a lot of features (not that it aims at
+having tons of them). You can request features in issues. Depending on
+interest and my budged for new shellies, I will be adding new support.
