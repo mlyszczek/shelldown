@@ -513,6 +513,13 @@ int mqtt_init
 	if (id_map_add_dst_from_file(&topic_map, config->id_map_file))
 		return_print(-1, errno, ELF, "Failed to load id map");
 
+	if (topic_map == NULL)
+	{
+		el_print(ELF, "No shelly map, add some in %s, before starting",
+				config->id_map_file);
+		return -1;
+	}
+
 	id_map_print(topic_map);
 
 	mosquitto_lib_init();

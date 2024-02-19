@@ -42,8 +42,7 @@
                    / /_/ // /   / / | |/ // /_/ // /_ /  __/
                   / .___//_/   /_/  |___/ \__,_/ \__/ \___/
                  /_/
-
-/* ==========================================================================
+   ==========================================================================
     Creates new node with copy of $src and $dst
 
     Returns NULL on error or address on success
@@ -107,7 +106,6 @@ static id_map_t id_map_new_state_node
 	return node;
 }
 /* ==========================================================================
-                                        __     __ _
                          ____   __  __ / /_   / /(_)_____
                         / __ \ / / / // __ \ / // // ___/
                        / /_/ // /_/ // /_/ // // // /__
@@ -161,7 +159,6 @@ id_map_t id_map_find_node
 	/* node of that topic does not exist */
 	return NULL;
 }
-
 
 
 /* ==========================================================================
@@ -408,7 +405,7 @@ int id_map_print
 )
 {
 	if (head == NULL)
-		return_print(0, 0, ELN, "id map id empty");
+		return_print(0, 0, ELN, "id map is empty");
 
 	el_print(ELN, "contents of id map:");
 	id_map_foreach(head)
