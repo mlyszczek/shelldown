@@ -127,6 +127,11 @@ static void mqtt_on_connect
 			subscribe("%s/events/rpc", node->src);
 			if (strncmp(node->src, "shellyplus1pm", 13) == cmp_equal)
 				subscribe("%s%s/relay/0/command", tbase, node->dst);
+			if (strncmp(node->src, "shellyplus2pm", 13) == cmp_equal)
+			{
+				subscribe("%s%s/roller/0/command", tbase, node->dst);
+				subscribe("%s%s/roller/0/command/pos", tbase, node->dst);
+			}
 		}
 #undef subscribe
 	}
@@ -277,7 +282,6 @@ static void mqtt_on_message_cmd
 	json_object_set(json_cmd, "params", json_param);
 	json_object_set(json_param, "id", json_integer(atoi(id)));
 
-
 	if (strcmp(cmd, "relay") == cmp_equal)
 	{
 		if (payload[0] == 't')
@@ -290,6 +294,11 @@ static void mqtt_on_message_cmd
 			/* little shortcut "on"[1] == 'n' */
 			json_object_set(json_param, "on", json_boolean(payload[1] == 'n'));
 		}
+	}
+	else if (strcmp(cmd, "roller") == cmp_equal)
+	{
+		json_object_set(json_cmd, "method", json_string("Cover.GoToPosition"));
+		json_object_set(json_param, "pos", json_integer(atoi(payload)));
 	}
 
 	/* construct new topic */
@@ -444,6 +453,7 @@ static void mqtt_on_message_v2
 	}
 
 	publish_for_device(plus1pm);
+	publish_for_device(plus2pm);
 	publish_for_device(plusi4);
 #undef publish_for_device
 

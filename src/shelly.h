@@ -18,6 +18,7 @@ int shelly_id_to_ver(const char *id);
 	void shelly_##s##_set(const char *topic, const char *payload, int qos, int retain)
 
 declare_shelly(plus1pm);
+declare_shelly(plus2pm);
 declare_shelly(plusi4);
 
 #endif

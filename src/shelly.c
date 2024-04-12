@@ -39,6 +39,7 @@ int shelly_id_to_ver
 	RET_API("shellyem", 1);
 
 	RET_API("shellyplus1pm", 2);
+	RET_API("shellyplus2pm", 2);
 	RET_API("shellyplusi4", 2);
 
 #undef RET_API
